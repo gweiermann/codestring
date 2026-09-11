@@ -1,0 +1,33 @@
+{
+  "name": "@codestring/eslint",
+  "version": "0.1.0",
+  "description": "Write ESLint rules as patterns: find this, say that, fix it like this.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@codestring/core": "workspace:*",
+    "@codestring/javascript": "workspace:*"
+  },
+  "peerDependencies": {
+    "eslint": ">=8"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0"
+  }
+}

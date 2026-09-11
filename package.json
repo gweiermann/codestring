@@ -1,0 +1,39 @@
+{
+  "name": "codestring-monorepo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" build",
+    "clean": "pnpm -r --filter \"./packages/*\" exec rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:types": "vitest run --typecheck.only",
+    "test:watch": "vitest",
+    "check": "pnpm typecheck && pnpm test",
+    "bench": "pnpm build && node --experimental-strip-types scripts/bench.ts",
+    "example:twig": "pnpm build && node --experimental-strip-types examples/twig-html-migration/run.ts",
+    "example:js": "pnpm build && node --experimental-strip-types examples/javascript-codemod/run.ts",
+    "example:vue": "pnpm build && node --experimental-strip-types examples/vue-nested/run.ts",
+    "cs": "pnpm build && node packages/cli/dist/bin.js"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4",
+    "@codestring/core": "workspace:*",
+    "@codestring/adapter-utils": "workspace:*",
+    "@codestring/twig": "workspace:*",
+    "@codestring/html": "workspace:*",
+    "@codestring/javascript": "workspace:*",
+    "@codestring/testing": "workspace:*",
+    "@codestring/cli": "workspace:*",
+    "codestring": "workspace:*",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2",
+    "@codestring/codemod": "workspace:*",
+    "@codestring/css": "workspace:*",
+    "@codestring/eslint": "workspace:*",
+    "eslint": "^9.17.0"
+  }
+}

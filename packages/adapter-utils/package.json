@@ -1,0 +1,26 @@
+{
+  "name": "@codestring/adapter-utils",
+  "version": "0.1.0",
+  "description": "Small helpers shared by language adapters: trivia splitting, argument tokenizing, placeholder padding.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@codestring/core": "workspace:*"
+  }
+}

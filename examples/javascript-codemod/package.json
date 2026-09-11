@@ -1,0 +1,14 @@
+{
+  "name": "@codestring-example/javascript-codemod",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node run.js"
+  },
+  "dependencies": {
+    "@codestring/core": "workspace:*",
+    "@codestring/javascript": "workspace:*",
+    "@codestring/codemod": "workspace:*"
+  }
+}

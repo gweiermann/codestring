@@ -1,0 +1,32 @@
+{
+  "name": "@codestring/twig",
+  "version": "0.1.0",
+  "description": "Twig language adapter for codestring. Ships its own dependency-free Twig parser.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@codestring/adapter-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "@codestring/core": "workspace:*"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@codestring/core": "workspace:*"
+  }
+}

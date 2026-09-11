@@ -1,0 +1,14 @@
+{
+  "name": "@codestring-example/vue-nested",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": { "start": "node --experimental-strip-types run.ts" },
+  "dependencies": {
+    "@codestring/codemod": "workspace:*",
+    "@codestring/core": "workspace:*",
+    "@codestring/css": "workspace:*",
+    "@codestring/html": "workspace:*",
+    "@codestring/javascript": "workspace:*"
+  }
+}

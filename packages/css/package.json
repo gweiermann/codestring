@@ -1,0 +1,14 @@
+{
+  "name": "@codestring/css",
+  "version": "0.1.0",
+  "description": "CSS language adapter for codestring. Ships its own dependency-free CSS parser.",
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "license": "MIT",
+  "scripts": { "build": "tsc -p tsconfig.json", "clean": "rm -rf dist" },
+  "dependencies": { "@codestring/adapter-utils": "workspace:*" },
+  "devDependencies": { "@codestring/core": "workspace:*" },
+  "peerDependencies": { "@codestring/core": "workspace:*" }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "codestring",
+  "version": "0.1.0",
+  "description": "Structural pattern matching and source-preserving transformation, with the first-party adapters bundled.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./twig": {
+      "types": "./dist/twig.d.ts",
+      "import": "./dist/twig.js"
+    },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "import": "./dist/html.js"
+    },
+    "./javascript": {
+      "types": "./dist/javascript.d.ts",
+      "import": "./dist/javascript.js"
+    },
+    "./css": {
+      "types": "./dist/css.d.ts",
+      "import": "./dist/css.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@codestring/core": "workspace:*",
+    "@codestring/twig": "workspace:*",
+    "@codestring/html": "workspace:*",
+    "@codestring/javascript": "workspace:*",
+    "@codestring/css": "workspace:*"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  }
+}

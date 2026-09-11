@@ -1,0 +1,16 @@
+{
+  "name": "@codestring/codemod",
+  "version": "0.1.0",
+  "description": "Declarative from/to transform rules for codestring, runnable over a string, a file or a whole tree.",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "license": "MIT",
+  "scripts": { "build": "tsc -p tsconfig.json", "clean": "rm -rf dist" },
+  "dependencies": {
+    "@codestring/core": "workspace:*"
+  }
+}

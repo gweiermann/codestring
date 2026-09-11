@@ -1,0 +1,29 @@
+{
+  "name": "@codestring/testing",
+  "version": "0.1.0",
+  "description": "Adapter contract compliance suite for codestring language adapters.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@codestring/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": ">=2"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  }
+}

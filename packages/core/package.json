@@ -1,0 +1,23 @@
+{
+  "name": "@codestring/core",
+  "version": "0.1.0",
+  "description": "Language-agnostic structural pattern matching and source-preserving transformation. No parser dependencies.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@codestring/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@codestring/adapter-utils": [
+        "packages/adapter-utils/src/index.ts"
+      ],
+      "@codestring/testing": [
+        "packages/testing/src/index.ts"
+      ],
+      "@codestring/twig": [
+        "packages/twig/src/index.ts"
+      ],
+      "@codestring/html": [
+        "packages/html/src/index.ts"
+      ],
+      "@codestring/javascript": [
+        "packages/javascript/src/index.ts"
+      ],
+      "@codestring/cli": [
+        "packages/cli/src/index.ts"
+      ],
+      "codestring": [
+        "packages/umbrella/src/index.ts"
+      ],
+      "codestring/*": [
+        "packages/umbrella/src/*.ts"
+      ],
+      "@codestring/codemod": [
+        "packages/codemod/src/index.ts"
+      ],
+      "@codestring/css": [
+        "packages/css/src/index.ts"
+      ],
+      "@codestring/eslint": [
+        "packages/eslint/src/index.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "examples/**/*.ts",
+    "scripts/**/*.ts"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@codestring/cli",
+  "version": "0.1.0",
+  "description": "Structural grep and rewrite on the command line, for any registered codestring adapter.",
+  "type": "module",
+  "bin": {
+    "codestring": "./dist/bin.js",
+    "cs": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@codestring/core": "workspace:*",
+    "@codestring/html": "workspace:*",
+    "@codestring/javascript": "workspace:*",
+    "@codestring/twig": "workspace:*",
+    "@codestring/css": "workspace:*"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  }
+}
