@@ -191,3 +191,21 @@ describe("holes where the grammar demands a literal", () => {
     expect(js.parse("import a from 'y';").includes(code`import a from 'x'`)).toBe(false);
   });
 });
+
+describe("a hole stands for the outermost node it covers", () => {
+  const bindings = capture("bindings");
+  const from = capture("from");
+  const pattern = code`import ${bindings} from "${from}"`;
+
+  it("matches every single-specifier import form", () => {
+    expect(js.parse("import a from 'x';").match(pattern)!.get(bindings).text()).toBe("a");
+    expect(js.parse("import { A } from 'x';").match(pattern)!.get(bindings).text()).toBe("A");
+    expect(js.parse("import * as ns from 'x';").match(pattern)!.get(bindings).text()).toBe("* as ns");
+  });
+
+  it("captures the specifier and the path of the same import", () => {
+    const match = js.parse("import { Component } from '@administration/x.js';").match(pattern)!;
+    expect(match.get(bindings).text()).toBe("Component");
+    expect(match.get(from).text()).toBe("'@administration/x.js'");
+  });
+});

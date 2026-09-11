@@ -253,15 +253,16 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
     return `${prefix}${fallback}${suffix}`;
   },
 
-  detectPlaceholder(node, text) {
-    if (node.kind === "ExpressionStatement" || node.kind === "Identifier") {
-      const match = PLACEHOLDER.exec(text.trim().replace(/;$/u, "").trim());
-      return match ? Number(match[1]) : null;
-    }
-    if (node.kind === "Literal" || node.kind === "TemplateLiteral") {
-      const quoted = QUOTED_PLACEHOLDER.exec(text.trim());
-      return quoted ? Number(quoted[2]) : null;
-    }
-    return null;
+  /**
+   * Any node whose whole text is the placeholder is the hole. The walk is
+   * top-down, so the outermost such node wins — which is what lets a hole stand
+   * for an import clause without the pattern having to name which kind of
+   * specifier it is.
+   */
+  detectPlaceholder(_node, text) {
+    const bare = PLACEHOLDER.exec(text.trim().replace(/;$/u, "").trim());
+    if (bare) return Number(bare[1]);
+    const quoted = QUOTED_PLACEHOLDER.exec(text.trim());
+    return quoted ? Number(quoted[2]) : null;
   },
 });
