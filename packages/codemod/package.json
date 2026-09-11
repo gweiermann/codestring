@@ -4,12 +4,23 @@
   "description": "Declarative from/to transform rules for codestring, runnable over a string, a file or a whole tree.",
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "license": "MIT",
-  "scripts": { "build": "tsc -p tsconfig.json", "clean": "rm -rf dist" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
   "dependencies": {
     "@codestring/core": "workspace:*"
   }

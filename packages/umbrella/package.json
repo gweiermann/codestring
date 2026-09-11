@@ -6,23 +6,28 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./twig": {
       "types": "./dist/twig.d.ts",
-      "import": "./dist/twig.js"
+      "import": "./dist/twig.js",
+      "default": "./dist/twig.js"
     },
     "./html": {
       "types": "./dist/html.d.ts",
-      "import": "./dist/html.js"
+      "import": "./dist/html.js",
+      "default": "./dist/html.js"
     },
     "./javascript": {
       "types": "./dist/javascript.d.ts",
-      "import": "./dist/javascript.js"
+      "import": "./dist/javascript.js",
+      "default": "./dist/javascript.js"
     },
     "./css": {
       "types": "./dist/css.d.ts",
-      "import": "./dist/css.js"
+      "import": "./dist/css.js",
+      "default": "./dist/css.js"
     }
   },
   "files": [
