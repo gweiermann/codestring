@@ -22,7 +22,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["packages/*/test/**/*.test.ts", "examples/*/test/**/*.test.ts"],
+    include: [
+      "packages/*/test/**/*.test.ts",
+      "examples/*/test/**/*.test.ts",
+      "experiments/*/test/**/*.test.ts",
+    ],
     environment: "node",
     typecheck: {
       enabled: true,

@@ -2,6 +2,9 @@ import { type Comment, type Node as AcornNode, parse as acornParse } from "acorn
 import { defineAdapter, type ParseDiagnostic, type TriviaClass } from "@codestring/core";
 
 const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
+// A module specifier or an i18n key has to be a literal, so a hole there is
+// written inside the quotes and stands for the whole literal.
+const QUOTED_PLACEHOLDER = /^(["'`])__sm_hole_(\d+)__\1$/u;
 const IDENTIFIER_EDGE = /[A-Za-z0-9_$]/u;
 
 const VARIADIC = new Set([
@@ -254,6 +257,10 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
     if (node.kind === "ExpressionStatement" || node.kind === "Identifier") {
       const match = PLACEHOLDER.exec(text.trim().replace(/;$/u, "").trim());
       return match ? Number(match[1]) : null;
+    }
+    if (node.kind === "Literal" || node.kind === "TemplateLiteral") {
+      const quoted = QUOTED_PLACEHOLDER.exec(text.trim());
+      return quoted ? Number(quoted[2]) : null;
     }
     return null;
   },

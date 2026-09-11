@@ -96,6 +96,31 @@ importers:
         specifier: workspace:*
         version: link:../../packages/javascript
 
+  experiments/shopware:
+    dependencies:
+      '@codestring/codemod':
+        specifier: workspace:*
+        version: link:../../packages/codemod
+      '@codestring/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@codestring/eslint':
+        specifier: workspace:*
+        version: link:../../packages/eslint
+      '@codestring/html':
+        specifier: workspace:*
+        version: link:../../packages/html
+      '@codestring/javascript':
+        specifier: workspace:*
+        version: link:../../packages/javascript
+      '@codestring/twig':
+        specifier: workspace:*
+        version: link:../../packages/twig
+    devDependencies:
+      eslint:
+        specifier: ^9.17.0
+        version: 9.39.5(supports-color@7.2.0)
+
   packages/adapter-utils:
     devDependencies:
       '@codestring/core':

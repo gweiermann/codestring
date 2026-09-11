@@ -163,3 +163,31 @@ describe("separators", () => {
     expect(header.removeAll(code`a()`).text()).toBe("for (let i = 0; i < n; i++) {  }");
   });
 });
+
+describe("holes where the grammar demands a literal", () => {
+  it("matches a module specifier", () => {
+    const from = capture("from");
+    const match = js.parse("import Component from '@administration/app/vue.adapter';").match(
+      code`import ${capture("bindings")} from "${from}"`,
+    )!;
+    expect(match.get(from).text()).toBe("'@administration/app/vue.adapter'");
+  });
+
+  it("does not care which quotes the source used", () => {
+    const from = capture("from");
+    const pattern = code`import a from "${from}"`;
+    expect(js.parse(`import a from 'x';`).includes(pattern)).toBe(true);
+    expect(js.parse(`import a from "x";`).includes(pattern)).toBe(true);
+  });
+
+  it("matches any argument that has to be a literal", () => {
+    const key = capture("key");
+    const match = js.parse("t('sw-product.title');").match(code`t("${key}")`)!;
+    expect(match.get(key).text()).toBe("'sw-product.title'");
+  });
+
+  it("still matches a plain literal written out", () => {
+    expect(js.parse("import a from 'x';").includes(code`import a from 'x'`)).toBe(true);
+    expect(js.parse("import a from 'y';").includes(code`import a from 'x'`)).toBe(false);
+  });
+});

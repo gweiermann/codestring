@@ -51,6 +51,7 @@
     "packages/*/src/**/*.ts",
     "packages/*/test/**/*.ts",
     "examples/**/*.ts",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "experiments/**/*.ts"
   ]
 }
