@@ -10,7 +10,9 @@ describe("html parsing", () => {
     const div = parsed.root.children[0]!;
     expect(div.kind).toBe("element:div");
     expect(div.children.map((child) => child.kind)).toEqual(["attributes", "text"]);
-    expect(div.children[0]!.children.map((child) => child.text())).toEqual(['class="a"']);
+    expect(
+      div.children[0]!.children.filter((child) => child.kind === "attribute").map((child) => child.text()),
+    ).toEqual(['class="a"']);
   });
 
   it("splits indentation off a text run", () => {
@@ -70,7 +72,9 @@ describe("html matching", () => {
   });
 
   it("splits an attribute into its name and its value", () => {
-    const attribute = html.parse('<div class="a b">x</div>').root.children[0]!.children[0]!.children[0]!;
+    const attribute = html
+      .parse('<div class="a b">x</div>')
+      .root.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
     expect(attribute.children.map((child) => [child.kind, child.text()])).toEqual([
       ["attribute-name", "class"],
       ["attribute-value", "a b"],
@@ -78,7 +82,9 @@ describe("html matching", () => {
   });
 
   it("gives a valueless attribute only a name", () => {
-    const attribute = html.parse("<input disabled>").root.children[0]!.children[0]!.children[0]!;
+    const attribute = html
+      .parse("<input disabled>")
+      .root.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
     expect(attribute.children.map((child) => child.kind)).toEqual(["attribute-name"]);
   });
 

@@ -55,6 +55,28 @@ function attributeNodes(
 }
 
 /**
+ * Attributes are held apart by whitespace rather than by punctuation, so that
+ * whitespace is the list's separator: removing one attribute takes the space
+ * beside it and leaves the others spaced as they were.
+ */
+function withAttributeSeparators(attrs: HtmlNode[], source: string, start: number, end: number): HtmlNode[] {
+  const result: HtmlNode[] = [];
+  let cursor = start;
+  const addGap = (from: number, to: number) => {
+    if (to > from && source.slice(from, to).trim() === "") {
+      result.push(node("separator", from, to, [], { trivia: "separator" }));
+    }
+  };
+  for (const attribute of attrs) {
+    addGap(cursor, attribute.start);
+    result.push(attribute);
+    cursor = attribute.end;
+  }
+  addGap(cursor, end);
+  return result;
+}
+
+/**
  * An attribute splits into its name and its value, so a pattern can put a hole
  * on either side of the `=` — `class="${x}"` — rather than having to spell the
  * whole attribute out or match nothing at all.
@@ -84,7 +106,8 @@ function attributeContainer(
   const start = Math.min(startTag.startOffset + 1 + tagName.length, startTag.endOffset - 1);
   let end = Math.max(startTag.endOffset - 1, start);
   if (source[end - 1] === "/" && end - 1 >= start) end -= 1;
-  return node("attributes", start, end, attributeNodes(element, location, source));
+  const attrs = attributeNodes(element, location, source);
+  return node("attributes", start, end, withAttributeSeparators(attrs, source, start, end));
 }
 
 function childNodesOf(current: Parse5Node): Parse5Node[] {

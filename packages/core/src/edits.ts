@@ -73,7 +73,10 @@ export function remove(target: EditTargetInput): Edit {
 
 /** The one separator beside a matched sibling run: after it, or before it when it is last. */
 function adjacentSeparator(target: EditTargetInput): { start: number; end: number } | undefined {
-  const nodes = (target as { nodes?: readonly NodeRef<unknown>[] }).nodes;
+  // A node is its own one-element run, so `remove(node)` reaches its separator
+  // the same way `remove(match)` does.
+  const nodes =
+    target instanceof NodeRef ? [target] : (target as { nodes?: readonly NodeRef<unknown>[] }).nodes;
   let first = nodes?.[0];
   let last = nodes?.[nodes.length - 1];
   if (!first || !last) return undefined;
