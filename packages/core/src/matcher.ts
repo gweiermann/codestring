@@ -1,8 +1,16 @@
 import { MatchError } from "./errors.js";
-import { type CompiledPattern, type PatternIR, type RepIR, type TriviaPolicy, filterTrivia } from "./compile.js";
+import {
+  type CompiledPattern,
+  type PatternIR,
+  type RepIR,
+  type TriviaPolicy,
+  comparisonText,
+  filterTrivia,
+} from "./compile.js";
 import { type NodeRef, walk } from "./nodes.js";
 import type { ParsedDocument } from "./parsed.js";
 import type { AnyCapture } from "./captures.js";
+import type { AnyAdapter } from "./adapter.js";
 import type { SourceDocument } from "./source.js";
 
 const STEP_BUDGET = 2_000_000;
@@ -36,6 +44,7 @@ function normalizeText(text: string, trivia: TriviaPolicy): string {
 
 class MatchContext<TNode> {
   readonly trivia: TriviaPolicy;
+  readonly adapter: AnyAdapter;
   readonly document: SourceDocument;
   readonly wantExplanation: boolean;
   bindings: Bindings<TNode> = new Map();
@@ -44,8 +53,14 @@ class MatchContext<TNode> {
   failure: MatchFailure<TNode> | null = null;
   emptyAnchor = 0;
 
-  constructor(init: { trivia: TriviaPolicy; document: SourceDocument; wantExplanation: boolean }) {
+  constructor(init: {
+    trivia: TriviaPolicy;
+    adapter: AnyAdapter;
+    document: SourceDocument;
+    wantExplanation: boolean;
+  }) {
     this.trivia = init.trivia;
+    this.adapter = init.adapter;
     this.document = init.document;
     this.wantExplanation = init.wantExplanation;
   }
@@ -111,7 +126,7 @@ function matchNodeIR<TNode>(ir: PatternIR & { t: "node" }, node: NodeRef<TNode>,
       return false;
     }
     const expected = normalizeText(ir.text ?? "", ctx.trivia);
-    const actual = normalizeText(node.text(), ctx.trivia);
+    const actual = normalizeText(comparisonText(ctx.adapter, node as NodeRef<unknown>), ctx.trivia);
     if (expected !== actual) {
       ctx.note({ reason: "text", offset: node.start, expected, actual, node });
       return false;
@@ -257,6 +272,7 @@ export function search<TNode>(
   const seenRanges = new Set<string>();
   const ctx = new MatchContext<TNode>({
     trivia: compiled.trivia,
+    adapter: parsedDocument.adapter,
     document: parsedDocument.document,
     wantExplanation: options.wantExplanation ?? false,
   });

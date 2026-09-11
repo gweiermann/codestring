@@ -245,6 +245,12 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
   triviaClass: (node) => node.trivia,
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => VARIADIC.has(kind),
+
+  /** A string is what it says, not which quotes it was written with. */
+  compareText(node, text) {
+    if (node.kind !== "Literal" || !/^["']/u.test(text)) return text;
+    return `"${text.slice(1, -1).replace(/\\(['"])/gu, "$1")}"`;
+  },
   isPatternWrapper: (kind) => kind === "ExpressionStatement",
 
   placeholder(_index, { before, after, fallback }) {

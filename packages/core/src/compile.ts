@@ -288,6 +288,12 @@ function unwrapPatternRoot<TNode>(node: NodeRef<TNode>, adapter: AnyAdapter, tri
   return { node: current, parentKind };
 }
 
+/** What a leaf is compared by: the adapter's answer, or its own source. */
+export function comparisonText(adapter: AnyAdapter, node: NodeRef<unknown>): string {
+  const text = node.text();
+  return adapter.compareText ? adapter.compareText(node.raw, text) : text;
+}
+
 function toIR<TNode>(node: NodeRef<TNode>, parentKind: string | null, context: CompileContext): PatternIR {
   const index = detectPlaceholder(context.adapter, node as NodeRef<unknown>);
   if (index !== null) {
@@ -307,7 +313,7 @@ function toIR<TNode>(node: NodeRef<TNode>, parentKind: string | null, context: C
     t: "node",
     kind: node.kind,
     leaf: children.length === 0,
-    text: children.length === 0 ? node.text() : null,
+    text: children.length === 0 ? comparisonText(context.adapter, node) : null,
     children,
   };
 }

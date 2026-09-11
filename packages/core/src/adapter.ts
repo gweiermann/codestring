@@ -49,6 +49,13 @@ export interface LanguageAdapter<TParsed = unknown, TNode = unknown, TToken = un
   isErrorNode?(node: TNode): boolean;
   isMissingNode?(node: TNode): boolean;
 
+  /**
+   * The text two leaves are compared by, when their source spelling says more
+   * than their content does — a string literal's quotes, say. Defaults to the
+   * node's own source.
+   */
+  compareText?(node: TNode, text: string): string;
+
   /** Does this kind hold an unbounded list of children? Decides whether a bare hole is a run. */
   isVariadic?(kind: string): boolean;
   /** A node the parser adds around a fragment, which a pattern should see through. */

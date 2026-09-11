@@ -209,3 +209,27 @@ describe("a hole stands for the outermost node it covers", () => {
     expect(match.get(from).text()).toBe("'@administration/x.js'");
   });
 });
+
+describe("string literals are compared by what they say", () => {
+  it("does not care which quotes either side used", () => {
+    expect(js.parse("feature.isActive('VUE3');").includes(code`feature.isActive("VUE3")`)).toBe(true);
+    expect(js.parse('feature.isActive("VUE3");').includes(code`feature.isActive('VUE3')`)).toBe(true);
+  });
+
+  it("still tells two different strings apart", () => {
+    expect(js.parse("feature.isActive('VUE2');").includes(code`feature.isActive("VUE3")`)).toBe(false);
+  });
+
+  it("does not confuse a string with an identifier of the same name", () => {
+    expect(js.parse("f(VUE3);").includes(code`f("VUE3")`)).toBe(false);
+    expect(js.parse("f('VUE3');").includes(code`f(VUE3)`)).toBe(false);
+  });
+
+  it("leaves the source spelling alone when it rewrites around one", () => {
+    const arg = capture("arg");
+    expect(
+      js.parse("feature.isActive('VUE3');").replaceAll(code`feature.isActive("VUE3")`, code`true`).text(),
+    ).toBe("true;");
+    void arg;
+  });
+});
