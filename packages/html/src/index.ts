@@ -6,7 +6,7 @@ type Parse5Node = DefaultTreeAdapterMap["node"];
 type Parse5Element = DefaultTreeAdapterMap["element"];
 
 const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
-const HOLE_KINDS = new Set(["text", "attribute"]);
+const HOLE_KINDS = new Set(["text", "attribute", "attribute-name", "attribute-value"]);
 
 export interface HtmlNode {
   kind: string;
@@ -32,21 +32,46 @@ const node = (
   extra: Partial<HtmlNode> = {},
 ): HtmlNode => ({ kind, start, end, children, trivia: null, error: false, ...extra });
 
-function attributeNodes(element: Parse5Element, location: NonNullable<Parse5Element["sourceCodeLocation"]>) {
+function attributeNodes(
+  element: Parse5Element,
+  location: NonNullable<Parse5Element["sourceCodeLocation"]>,
+  source: string,
+) {
   const attrs: HtmlNode[] = [];
   const locations = location.attrs ?? {};
   for (const attribute of element.attrs ?? []) {
     const key = attribute.prefix ? `${attribute.prefix}:${attribute.name}` : attribute.name;
     const attributeLocation = locations[key] ?? locations[attribute.name];
     if (!attributeLocation) continue;
+    const { startOffset, endOffset } = attributeLocation;
     attrs.push(
-      node("attribute", attributeLocation.startOffset, attributeLocation.endOffset, [], {
+      node("attribute", startOffset, endOffset, attributeParts(source, startOffset, endOffset), {
         name: attribute.name,
       }),
     );
   }
   attrs.sort((a, b) => a.start - b.start);
   return attrs;
+}
+
+/**
+ * An attribute splits into its name and its value, so a pattern can put a hole
+ * on either side of the `=` — `class="${x}"` — rather than having to spell the
+ * whole attribute out or match nothing at all.
+ */
+function attributeParts(source: string, start: number, end: number): HtmlNode[] {
+  const raw = source.slice(start, end);
+  const equals = raw.indexOf("=");
+  if (equals === -1) return [node("attribute-name", start, end)];
+
+  const name = node("attribute-name", start, start + raw.slice(0, equals).trimEnd().length);
+  const after = raw.slice(equals + 1);
+  const valueStart = start + equals + 1 + (after.length - after.trimStart().length);
+  const quoted = /^["']/u.test(source[valueStart] ?? "");
+  return [
+    name,
+    node("attribute-value", quoted ? valueStart + 1 : valueStart, quoted ? end - 1 : end),
+  ];
 }
 
 function attributeContainer(
@@ -59,7 +84,7 @@ function attributeContainer(
   const start = Math.min(startTag.startOffset + 1 + tagName.length, startTag.endOffset - 1);
   let end = Math.max(startTag.endOffset - 1, start);
   if (source[end - 1] === "/" && end - 1 >= start) end -= 1;
-  return node("attributes", start, end, attributeNodes(element, location));
+  return node("attributes", start, end, attributeNodes(element, location, source));
 }
 
 function childNodesOf(current: Parse5Node): Parse5Node[] {
@@ -144,8 +169,9 @@ export const htmlAdapter = defineAdapter<HtmlParsed, HtmlNode>({
 
   detectPlaceholder(node, text) {
     if (!HOLE_KINDS.has(node.kind)) return null;
-    const candidate = node.kind === "attribute" ? node.name ?? text : text.trim();
-    const match = PLACEHOLDER.exec(candidate);
+    // A whole attribute is a hole only when nothing else is written on it; with
+    // a value present the walk descends to the name or the value instead.
+    const match = PLACEHOLDER.exec(text.trim());
     return match ? Number(match[1]) : null;
   },
 });

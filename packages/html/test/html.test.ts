@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { any, capture, createLanguage, oneOrMore, zeroOrMore } from "@codestring/core";
+import { any, capture, code, createLanguage, oneOrMore, zeroOrMore } from "@codestring/core";
 import { htmlAdapter } from "@codestring/html";
 
 const html = createLanguage(htmlAdapter);
@@ -64,8 +64,33 @@ describe("html matching", () => {
 
   it("matches regardless of attribute quoting and spacing", () => {
     const pattern = html.pattern`<a href="x">${inner}</a>`;
-    expect(pattern.match("<a href='x'>link</a>")).toBeNull();
+    expect(pattern.match("<a href='x'>link</a>")).not.toBeNull();
     expect(pattern.match('<a   href="x" >link</a>')).not.toBeNull();
+    expect(pattern.match('<a href="y">link</a>')).toBeNull();
+  });
+
+  it("splits an attribute into its name and its value", () => {
+    const attribute = html.parse('<div class="a b">x</div>').root.children[0]!.children[0]!.children[0]!;
+    expect(attribute.children.map((child) => [child.kind, child.text()])).toEqual([
+      ["attribute-name", "class"],
+      ["attribute-value", "a b"],
+    ]);
+  });
+
+  it("gives a valueless attribute only a name", () => {
+    const attribute = html.parse("<input disabled>").root.children[0]!.children[0]!.children[0]!;
+    expect(attribute.children.map((child) => child.kind)).toEqual(["attribute-name"]);
+  });
+
+  it("puts a hole on either side of the equals sign", () => {
+    const value = capture("value");
+    const name = capture("name");
+    expect(html.parse('<div class="card">x</div>').match(code`<div class="${value}">${any()}</div>`)!.get(value).text()).toBe(
+      "card",
+    );
+    expect(html.parse('<div class="card">x</div>').match(code`<div ${name}="card">${any()}</div>`)!.get(name).text()).toBe(
+      "class",
+    );
   });
 
   it("finds nested occurrences of the same element", () => {
