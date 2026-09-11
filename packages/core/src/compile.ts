@@ -98,6 +98,18 @@ function flattenTemplate(
       literals.push(String(strings[i + 1]));
       continue;
     }
+    if (isFragmentInternals(value)) {
+      // A fragment composes into another fragment the way a pattern does:
+      // its literals and holes are spliced in before anything is parsed.
+      const nested = flattenTemplate(value.strings, value.values, adapter);
+      push(nested.literals[0]!);
+      for (let n = 0; n < nested.holes.length; n++) {
+        holes.push(nested.holes[n]!);
+        literals.push(nested.literals[n + 1]!);
+      }
+      push(String(strings[i + 1]));
+      continue;
+    }
     if (isPatternInternals(value)) {
       if (value.language.adapter !== adapter) {
         throw new PatternCompileError(
@@ -127,6 +139,12 @@ function flattenTemplate(
   return { literals, holes };
 }
 
+/** The part of a Language the compiler needs, without importing the class. */
+interface CompileLanguage {
+  readonly id: string;
+  readonly adapter: AnyAdapter;
+}
+
 /** The part of a Pattern the compiler needs, without importing the class. */
 interface PatternInternals {
   readonly isStructuralPattern: true;
@@ -134,6 +152,16 @@ interface PatternInternals {
   readonly values: readonly unknown[];
   readonly language: { readonly id: string; readonly adapter: AnyAdapter };
   readonly compiled: CompiledPattern;
+}
+
+interface FragmentInternals {
+  readonly isCodeFragment: true;
+  readonly strings: readonly string[];
+  readonly values: readonly unknown[];
+}
+
+function isFragmentInternals(value: unknown): value is FragmentInternals {
+  return Boolean(value && typeof value === "object" && (value as FragmentInternals).isCodeFragment === true);
 }
 
 function isPatternInternals(value: unknown): value is PatternInternals {
@@ -172,6 +200,7 @@ function holeCardinality(adapter: AnyAdapter, parentKind: string | null) {
 }
 
 interface CompileContext {
+  readonly language: CompileLanguage;
   readonly adapter: AnyAdapter;
   readonly holes: readonly HoleValue[];
   readonly trivia: TriviaPolicy;
@@ -205,6 +234,14 @@ function compileHoleValue(value: HoleValue, parentKind: string | null, context: 
 
 /** Everything a repetition or alternative may wrap consumes exactly one node. */
 function compileItemValue(value: ItemValue, context: CompileContext): PatternIR {
+  if (isFragmentInternals(value)) {
+    // A fragment inside a combinator is compiled against the language it has
+    // now met, then treated exactly like a sub-pattern.
+    return compileItemValue(
+      (value as unknown as { compile(language: CompileLanguage): ItemValue }).compile(context.language),
+      context,
+    );
+  }
   if (isPatternInternals(value)) {
     if (value.language.adapter !== context.adapter) {
       throw new PatternCompileError(
@@ -338,7 +375,7 @@ function collectCaptures(item: PatternIR, seen: Set<AnyCapture>, duplicates: Set
 }
 
 export function compilePattern(input: {
-  language: { readonly id: string; readonly adapter: AnyAdapter };
+  language: CompileLanguage;
   strings: readonly string[];
   values: readonly unknown[];
   options: PatternOptions;
@@ -377,7 +414,7 @@ export function compilePattern(input: {
   }
 
   const root = normalize({ adapter, parsed, document, origin: 0, localLength: source.length });
-  const context: CompileContext = { adapter, holes, trivia, used: new Set<number>() };
+  const context: CompileContext = { language, adapter, holes, trivia, used: new Set<number>() };
   const items = filterTrivia(root.children, trivia)
     .map((child) => unwrapPatternRoot(child, adapter, trivia))
     .map(({ node, parentKind }) => toIR(node, parentKind, context));

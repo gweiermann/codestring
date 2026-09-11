@@ -86,8 +86,14 @@ export interface PatternLike<Captures extends CaptureSet = CaptureSet> {
   readonly __captures?: Captures;
 }
 
+/** Structural view of a code fragment, which composes into another fragment. */
+export interface FragmentLike<Captures extends CaptureSet = CaptureSet> {
+  readonly isCodeFragment: true;
+  compile(language: never): PatternLike<Captures>;
+}
+
 /** A single-node matcher that needs no further unwrapping. */
-export type SimpleItem = AnyCapture | AnyHole | PatternLike<CaptureSet>;
+export type SimpleItem = AnyCapture | AnyHole | PatternLike<CaptureSet> | FragmentLike<CaptureSet>;
 
 /** Anything a combinator may wrap: it must consume exactly one node per iteration. */
 export type ItemValue = SimpleItem | Choice<SimpleItem>;
@@ -110,7 +116,9 @@ export type CapturesIn<Value> = Value extends AnyCapture
       ? CapturesIn<Options>
       : Value extends PatternLike<infer Captures>
         ? Captures["one"] | Captures["optional"] | Captures["many"]
-        : never;
+        : Value extends FragmentLike<infer Captures>
+          ? Captures["one"] | Captures["optional"] | Captures["many"]
+          : never;
 
 /** Handles that bind exactly once, so `get()` always returns a result. */
 export type SingleOf<Value> = Value extends AnyCapture
@@ -125,7 +133,9 @@ export type SingleOf<Value> = Value extends AnyCapture
       ? never
       : Value extends PatternLike<infer Captures>
         ? Captures["one"]
-        : never;
+        : Value extends FragmentLike<infer Captures>
+          ? Captures["one"]
+          : never;
 
 /** Handles that bind at most once, so `get()` may return undefined. */
 export type OptionalOf<Value> = Value extends AnyCapture
@@ -140,7 +150,9 @@ export type OptionalOf<Value> = Value extends AnyCapture
       ? SingleOf<Options> | OptionalOf<Options>
       : Value extends PatternLike<infer Captures>
         ? Captures["optional"]
-        : never;
+        : Value extends FragmentLike<infer Captures>
+          ? Captures["optional"]
+          : never;
 
 /** Handles that can bind more than once, so only `getAll()` makes sense. */
 export type ManyOf<Value> = Value extends AnyCapture
@@ -153,7 +165,9 @@ export type ManyOf<Value> = Value extends AnyCapture
       ? ManyOf<Options>
       : Value extends PatternLike<infer Captures>
         ? Captures["many"]
-        : never;
+        : Value extends FragmentLike<infer Captures>
+          ? Captures["many"]
+          : never;
 
 /** The capture set a template's interpolated values add up to. */
 export type CapturesOf<Value> = {

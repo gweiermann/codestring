@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capture, code, createLanguage, exactly, oneOrMore } from "@codestring/core";
+import { capture, code, createLanguage, exactly, oneOf, oneOrMore } from "@codestring/core";
 import { toyAdapter } from "./toy-language.js";
 
 const toy = createLanguage(toyAdapter);
@@ -291,5 +291,41 @@ describe("inside", () => {
       )
       .text();
     expect(result).toBe("(outer (middle (inner deep)))");
+  });
+});
+
+describe("fragments compose", () => {
+  it("splices one fragment into another", () => {
+    const inner = code`(inner ${value})`;
+    const outer = code`(outer ${inner})`;
+    expect(toy.parse("(outer (inner x))").match(outer)!.get(value).text()).toBe("x");
+  });
+
+  it("keeps the inner fragment's captures typed", () => {
+    const call = code`(log ${value})`;
+    const match = toy.parse("(a (log x))").match(code`(a ${exactly(1, capture("slot"))})`)!;
+    expect(match.text()).toBe("(a (log x))");
+    expect(toy.parse("(a (log x))").match(code`(a ${call})`)!.get(value).text()).toBe("x");
+  });
+
+  it("composes a fragment built from a list", () => {
+    const checks = [code`(one ${value})`, code`(two ${capture("other")})`];
+    expect(toy.parse("(wrap (one a))").includes(code`(wrap ${checks[0]!})`)).toBe(true);
+    expect(toy.parse("(wrap (two b))").includes(code`(wrap ${checks[1]!})`)).toBe(true);
+  });
+
+  it("works inside a combinator", () => {
+    const item = code`(item ${value})`;
+    expect(toy.parse("(list (item a) (item b))").includes(code`(list ${oneOrMore(item)})`)).toBe(true);
+    expect(toy.parse("(list (item a) (other b))").includes(code`(list ${oneOrMore(item)})`)).toBe(false);
+  });
+
+  it("works inside oneOf", () => {
+    const left = code`(left)`;
+    const right = code`(right)`;
+    const pattern = code`(value ${oneOf(left, right)})`;
+    expect(toy.parse("(value (left))").includes(pattern)).toBe(true);
+    expect(toy.parse("(value (right))").includes(pattern)).toBe(true);
+    expect(toy.parse("(value (other))").includes(pattern)).toBe(false);
   });
 });
