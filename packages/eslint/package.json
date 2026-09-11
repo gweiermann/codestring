@@ -7,18 +7,19 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/index.js"
     }
   },
   "types": "./dist/index.d.ts",
   "files": [
+    "README.md",
     "dist",
-    "src",
-    "README.md"
+    "src"
   ],
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/mark-cjs.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -30,5 +31,6 @@
   },
   "devDependencies": {
     "eslint": "^9.17.0"
-  }
+  },
+  "main": "./dist/cjs/index.js"
 }

@@ -7,33 +7,38 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/index.js"
     },
     "./twig": {
       "types": "./dist/twig.d.ts",
       "import": "./dist/twig.js",
+      "require": "./dist/cjs/twig.js",
       "default": "./dist/twig.js"
     },
     "./html": {
       "types": "./dist/html.d.ts",
       "import": "./dist/html.js",
+      "require": "./dist/cjs/html.js",
       "default": "./dist/html.js"
     },
     "./javascript": {
       "types": "./dist/javascript.d.ts",
       "import": "./dist/javascript.js",
+      "require": "./dist/cjs/javascript.js",
       "default": "./dist/javascript.js"
     },
     "./css": {
       "types": "./dist/css.d.ts",
       "import": "./dist/css.js",
+      "require": "./dist/cjs/css.js",
       "default": "./dist/css.js"
     }
   },
   "files": [
+    "README.md",
     "dist",
-    "src",
-    "README.md"
+    "src"
   ],
   "license": "MIT",
   "dependencies": {
@@ -45,7 +50,8 @@
   },
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/mark-cjs.mjs",
     "clean": "rm -rf dist"
-  }
+  },
+  "main": "./dist/cjs/index.js"
 }

@@ -7,18 +7,20 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
       "default": "./dist/index.js"
     }
   },
   "files": [
+    "README.md",
     "dist",
-    "src",
-    "README.md"
+    "src"
   ],
   "license": "MIT",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/mark-cjs.mjs",
     "clean": "rm -rf dist"
-  }
+  },
+  "main": "./dist/cjs/index.js"
 }
