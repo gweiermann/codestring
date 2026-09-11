@@ -160,7 +160,15 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
 
   // --------------------------------------------------------------- rewriting
 
-  /** Turn matches into edits the way `replaceAll` would, for a custom pass. */
+  /**
+   * Turn matches into edits the way `replaceAll` would.
+   *
+   * A pattern can match inside itself — `{% if %}` around another `{% if %}` —
+   * and the two rewrites would then want the same range. Matches arrive
+   * outermost first, so the outer one wins and the inner is left for a second
+   * run; matches whose edits do not collide are all kept, which is what lets a
+   * nested element be rewritten alongside the one containing it.
+   */
   editsFor<Captures extends CaptureSet>(
     matches: readonly Match<Captures, TNode>[],
     to: Rewrite<Captures, TNode>,
@@ -169,18 +177,19 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
     for (const match of matches) {
       const produced = typeof to === "function" ? to(match) : to;
       if (produced == null) continue;
-      if (Array.isArray(produced)) {
-        edits.push(...(produced as readonly Edit[]));
-        continue;
+
+      let next: Edit[];
+      if (Array.isArray(produced)) next = [...(produced as readonly Edit[])];
+      else if (typeof produced === "object" && "operation" in produced) next = [produced as Edit];
+      else {
+        const replacement = isCodeFragment(produced)
+          ? produced.toTemplate(this.language.id, match)
+          : (produced as string);
+        next = [replace(match, replacement)];
       }
-      if (typeof produced === "object" && "operation" in produced) {
-        edits.push(produced as Edit);
-        continue;
-      }
-      const replacement = isCodeFragment(produced)
-        ? produced.toTemplate(this.language.id, match)
-        : (produced as string);
-      edits.push(replace(match, replacement));
+
+      if (next.some((edit) => collides(edit, edits))) continue;
+      edits.push(...next);
     }
     return edits;
   }
@@ -304,6 +313,16 @@ function usesCapture(value: unknown, block: Capture<"block">): boolean {
   if (kind === "choice") return (value as { options: unknown[] }).options.some((o) => usesCapture(o, block));
   if (isCodeFragment(value)) return value.values.some((nested) => usesCapture(nested, block));
   return false;
+}
+
+/** Would this edit land on source another edit has already claimed? */
+function collides(edit: Edit, taken: readonly Edit[]): boolean {
+  return taken.some(
+    (other) =>
+      other.slice.document === edit.slice.document &&
+      other.slice.start < edit.slice.end &&
+      edit.slice.start < other.slice.end,
+  );
 }
 
 /** A region callback that ignores its handle would silently match nothing. */

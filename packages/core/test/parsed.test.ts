@@ -115,10 +115,29 @@ describe("rewriting returns a new document", () => {
     expect(toy.parse("(log a) (log b)").edits(code`(log ${value})`, code`(debug ${value})`)).toHaveLength(2);
   });
 
-  it("refuses two rewrites that would touch the same range", () => {
+  it("takes the outermost match when a pattern matches inside itself", () => {
     const document = toy.parse("(log (log a))");
-    const nested = document.edits(code`(log ${value})`, code`(debug ${value})`);
-    expect(() => document.applyEdits(nested)).toThrow(/overlapping edits/);
+    expect(document.edits(code`(log ${value})`, code`(debug ${value})`)).toHaveLength(1);
+    expect(document.replaceAll(code`(log ${value})`, code`(debug ${value})`).text()).toBe("(debug (log a))");
+  });
+
+  it("keeps both when a nested match edits somewhere the outer one does not", () => {
+    const inner = capture("inner");
+    const document = toy.parse("(log (log a))");
+    const result = document.replaceAll(code`(log ${inner})`, (match) => match.replace(inner)`x`);
+    expect(result.text()).toBe("(log x)");
+  });
+
+  it("still refuses edits the caller named itself", () => {
+    const document = toy.parse("(log a)");
+    const whole = document.slice();
+    expect(() =>
+      document.applyEdits([
+        document.matchAll(code`(log ${value})`)[0]!.replace`a`,
+        document.matchAll(code`(log ${value})`)[0]!.replace(value)`b`,
+      ]),
+    ).toThrow(/overlapping edits/);
+    expect(whole.text()).toBe("(log a)");
   });
 });
 
