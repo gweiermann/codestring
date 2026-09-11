@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { any, capture, createLanguage, oneOrMore, remove, replace } from "@codestring/core";
+import { any, capture, code, createLanguage, oneOrMore, remove, replace } from "@codestring/core";
 import { twigAdapter } from "@codestring/twig";
 
 const twig = createLanguage(twigAdapter);
@@ -147,5 +147,23 @@ describe("twig pattern limits", () => {
 
   it("accepts a hole that is the whole text run between two tags", () => {
     expect(() => twig.pattern`{% block a %}${capture("x")}{% endblock %}`.compiled).not.toThrow();
+  });
+});
+
+describe("a tag whose only content is whitespace", () => {
+  it("matches a pattern written the same way", () => {
+    const kept = capture("kept");
+    const dropped = capture("dropped");
+    const source = "{% if VUE3 %}<p>new</p>{% else %}<p>old</p>{% endif %}";
+    const match = twig.parse(source).match(code`{% if VUE3 %}${kept}{% else %}${dropped}{% endif %}`)!;
+    expect(match.get(kept).text()).toBe("<p>new</p>");
+    expect(match.get(dropped).text()).toBe("<p>old</p>");
+  });
+
+  it("is a leaf whether or not its delimiters carry spaces", () => {
+    const kept = capture("kept");
+    const pattern = code`{% if A %}${kept}{% else %}${capture("b")}{% endif %}`;
+    expect(twig.parse("{% if A %}x{%else%}y{% endif %}").includes(pattern)).toBe(true);
+    expect(twig.parse("{% if A %}x{%   else   %}y{% endif %}").includes(pattern)).toBe(true);
   });
 });

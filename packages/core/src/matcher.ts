@@ -96,12 +96,16 @@ function matchNodeIR<TNode>(ir: PatternIR & { t: "node" }, node: NodeRef<TNode>,
     return false;
   }
   if (ir.leaf) {
-    if (!node.isLeaf) {
+    // The pattern's own children were trivia-filtered before it was called a
+    // leaf, so the source node has to be judged the same way: a tag whose only
+    // child is the whitespace inside it is a leaf to both of them.
+    const children = filterTrivia(node.children, ctx.trivia);
+    if (children.length > 0) {
       ctx.note({
         reason: "shape",
         offset: node.start,
         expected: `${ir.kind} without children`,
-        actual: `${ir.kind} with ${node.children.length} children`,
+        actual: `${ir.kind} with ${children.length} children`,
         node,
       });
       return false;

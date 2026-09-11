@@ -176,7 +176,11 @@ function handleTag(input: {
   const paired = name !== null && PAIRED.has(name) && !(name === "set" && argsText.includes("="));
 
   if (!paired) {
-    container.children.push(node(`tag:${name ?? "unknown"}`, open, end, tokens(argsText, argsStart)));
+    // Even an argument-less tag keeps an `args` child, so every tag is compared
+    // by its arguments rather than by its raw text — which is what makes
+    // `{%else%}` and `{% else %}` the same tag.
+    const selfArgs = node("args", argsStart, close, tokens(argsText, argsStart));
+    container.children.push(node(`tag:${name ?? "unknown"}`, open, end, [selfArgs]));
     return undefined;
   }
 
