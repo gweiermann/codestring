@@ -8,7 +8,15 @@ import type { ParsedDocument } from "./parsed.js";
 import type { Bindings } from "./matcher.js";
 import type { PatternHandle } from "./pattern-handle.js";
 
-/** One bound slot of one match: a source slice plus the nodes it covers. */
+/**
+ * One bound slot of one match: a source slice plus the nodes it covers.
+ *
+ * Matching steps over trivia, so the slice binds the nodes and stops there. The
+ * trivia it stepped over is not lost: `leading` and `trailing` are the runs on
+ * either side, and `full()` is the region including them — which is what a
+ * rewrite wants when it rebuilds the thing around a body and would otherwise
+ * drop the newline the body sat on.
+ */
 export class CaptureResult<TNode = unknown> extends SourceSlice {
   readonly capture: AnyCapture;
   readonly name: string | undefined;
@@ -29,6 +37,36 @@ export class CaptureResult<TNode = unknown> extends SourceSlice {
   kinds(): string[] {
     return this.nodes.map((node) => node.kind);
   }
+
+  /** The trivia immediately before the first node this bound. */
+  get leading(): SourceSlice {
+    return new SourceSlice(this.document, triviaEdge(this.nodes[0], -1) ?? this.start, this.start);
+  }
+
+  /** The trivia immediately after the last node this bound. */
+  get trailing(): SourceSlice {
+    const last = this.nodes[this.nodes.length - 1];
+    return new SourceSlice(this.document, this.end, triviaEdge(last, 1) ?? this.end);
+  }
+
+  /** The capture together with the trivia on either side of it. */
+  full(): SourceSlice {
+    return new SourceSlice(this.document, this.leading.start, this.trailing.end);
+  }
+}
+
+/** How far the trivia beside a node runs, in the direction given. */
+function triviaEdge<TNode>(node: NodeRef<TNode> | undefined, direction: -1 | 1): number | undefined {
+  const siblings = node?.parent?.children;
+  if (!node || !siblings) return undefined;
+  let index = siblings.indexOf(node);
+  let edge = direction === -1 ? node.start : node.end;
+  for (index += direction; index >= 0 && index < siblings.length; index += direction) {
+    const sibling = siblings[index]!;
+    if (sibling.trivia === null) break;
+    edge = direction === -1 ? sibling.start : sibling.end;
+  }
+  return edge;
 }
 
 declare const REPEATED_CAPTURE: unique symbol;

@@ -329,3 +329,45 @@ describe("fragments compose", () => {
     expect(toy.parse("(value (other))").includes(pattern)).toBe(false);
   });
 });
+
+describe("a capture keeps the trivia it stepped over", () => {
+  const body = capture("body");
+
+  it("binds the nodes and stops there", () => {
+    const match = toy.parse("(block\n    a\n)").match(code`(block ${body})`)!;
+    expect(match.get(body).text()).toBe("a");
+  });
+
+  it("hands back the trivia on either side", () => {
+    const match = toy.parse("(block\n    a\n)").match(code`(block ${body})`)!;
+    expect(match.get(body).leading.text()).toBe("\n    ");
+    expect(match.get(body).trailing.text()).toBe("\n");
+    expect(match.get(body).full().text()).toBe("\n    a\n");
+  });
+
+  it("reaches only as far as the trivia actually goes", () => {
+    const match = toy.parse("(block a)").match(code`(block ${body})`)!;
+    expect(match.get(body).leading.text()).toBe(" ");
+    expect(match.get(body).trailing.isEmpty()).toBe(true);
+    expect(match.get(body).full().text()).toBe(" a");
+  });
+
+  it("lets a rewrite keep the layout it would otherwise drop", () => {
+    const source = "(block\n    a\n)";
+    const match = toy.parse(source).match(code`(block ${body})`)!;
+    expect(match.transform([match.replace`(wrapped ${body})`])).toBe("(wrapped a)");
+    expect(match.transform([match.replace`(wrapped ${match.get(body).full()})`])).toBe("(wrapped \n    a\n)");
+  });
+
+  it("spans several bound nodes and the trivia around the run", () => {
+    const match = toy.parse("(block\n  a b\n)").match(code`(block ${body})`)!;
+    expect(match.get(body).text()).toBe("a b");
+    expect(match.get(body).full().text()).toBe("\n  a b\n");
+  });
+
+  it("stops at the next node, not at the container edge", () => {
+    const first = capture("first");
+    const match = toy.parse("(pair a   b)").match(code`(pair ${exactly(1, first)} ${capture("second")})`)!;
+    expect(match.get(first).trailing.text()).toBe("   ");
+  });
+});
