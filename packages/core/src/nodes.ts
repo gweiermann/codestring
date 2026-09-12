@@ -15,6 +15,8 @@ export class NodeRef<TNode = unknown> {
   readonly document: SourceDocument;
   readonly trivia: TriviaClass;
   readonly error: boolean;
+  /** Does this kind hold a list, rather than a fixed set of parts? */
+  readonly variadic: boolean;
   readonly children: NodeRef<TNode>[] = [];
   parent: NodeRef<TNode> | null = null;
 
@@ -26,6 +28,7 @@ export class NodeRef<TNode = unknown> {
     document: SourceDocument;
     trivia?: TriviaClass;
     error?: boolean;
+    variadic?: boolean;
   }) {
     this.kind = init.kind;
     this.start = init.start;
@@ -34,6 +37,7 @@ export class NodeRef<TNode = unknown> {
     this.document = init.document;
     this.trivia = init.trivia ?? null;
     this.error = init.error ?? false;
+    this.variadic = init.variadic ?? false;
   }
 
   get isLeaf(): boolean {
@@ -105,6 +109,7 @@ export function normalize<TParsed, TNode>(input: {
       document,
       trivia: adapter.triviaClass ? adapter.triviaClass(node) ?? null : null,
       error: adapter.isErrorNode ? Boolean(adapter.isErrorNode(node)) : false,
+      variadic: adapter.isVariadic ? Boolean(adapter.isVariadic(kind)) : false,
     });
     ref.parent = parentRef;
 

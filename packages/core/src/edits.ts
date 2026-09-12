@@ -25,6 +25,8 @@ export interface Edit {
    * rather than failing.
    */
   readonly extension?: { readonly start: number; readonly end: number };
+  /** How this insert keeps the list it lands in well formed. */
+  readonly separation?: Separation;
   toString(): string;
 }
 
@@ -43,13 +45,19 @@ function targetSlice(target: EditTargetInput, operation: EditOperation): SourceS
   throw new TypeError(`${operation}() needs a capture result, source slice, node or match as its target`);
 }
 
-function edit(operation: EditOperation, target: EditTargetInput, replacement: SourceValue): Edit {
+function edit(
+  operation: EditOperation,
+  target: EditTargetInput,
+  replacement: SourceValue,
+  separation?: Separation,
+): Edit {
   const slice = targetSlice(target, operation);
   return {
     [EDIT]: true,
     operation,
     slice,
     replacement,
+    separation,
     toString() {
       return `${operation}(${slice.start}..${slice.end})`;
     },
@@ -105,12 +113,89 @@ function adjacentSeparator(target: EditTargetInput): { start: number; end: numbe
   return undefined;
 }
 
+/**
+ * Insert next to a node, keeping the list it belongs to well formed.
+ *
+ * What separates two items is read off the tree — the region between two
+ * siblings already there, which is `", "` in an argument list, `" "` between
+ * attributes and `";\n    "` between statements, indentation included. When the
+ * list is too short to show one, two things that would fuse into one word get a
+ * space and nothing else gets anything. Text that already carries the
+ * separation is left alone, so this never doubles it.
+ */
 export function insertBefore(target: EditTargetInput, replacement: SourceValue): Edit {
-  return edit("insertBefore", target, replacement);
+  return edit("insertBefore", target, replacement, separationFor(target, "before"));
 }
 
 export function insertAfter(target: EditTargetInput, replacement: SourceValue): Edit {
-  return edit("insertAfter", target, replacement);
+  return edit("insertAfter", target, replacement, separationFor(target, "after"));
+}
+
+/**
+ * What already sits between this item and the one next to it — read off the
+ * tree, so it carries the list's own spacing and indentation. Separators and
+ * trivia are part of the answer, not obstacles to it.
+ */
+function observedSeparation(anchor: NodeRef<unknown>, side: "before" | "after"): string | null {
+  const siblings = anchor.parent?.children;
+  if (!siblings) return null;
+  const items = siblings.filter((node) => node.trivia === null);
+  const index = items.indexOf(anchor);
+  if (index === -1) return null;
+
+  const neighbour = side === "after" ? items[index + 1] : items[index - 1];
+  const fallback = side === "after" ? items[index - 1] : items[index + 1];
+  const [left, right] =
+    neighbour !== undefined
+      ? side === "after"
+        ? [anchor, neighbour]
+        : [neighbour, anchor]
+      : fallback !== undefined
+        ? side === "after"
+          ? [fallback, anchor]
+          : [anchor, fallback]
+        : [undefined, undefined];
+
+  if (!left || !right) return null;
+  return left.document.text.slice(left.end, right.start);
+}
+
+function separationFor(target: EditTargetInput, side: "before" | "after"): Separation | undefined {
+  const nodes = target instanceof NodeRef ? [target] : (target as { nodes?: readonly NodeRef<unknown>[] }).nodes;
+  const anchor = side === "before" ? nodes?.[0] : nodes?.[nodes.length - 1];
+  if (!anchor) return undefined;
+  // Only a list separates its items; the parts of a fixed construct do not.
+  const observed = anchor.parent?.variadic ? observedSeparation(anchor, side) : null;
+  return { side, observed, anchor };
+}
+
+interface Separation {
+  readonly side: "before" | "after";
+  readonly observed: string | null;
+  readonly anchor: NodeRef<unknown>;
+}
+
+const WORD_EDGE = /\w/u;
+
+/** What to put between two pieces of source so they do not fuse. */
+function separatorText(separation: Separation, inserted: string): string {
+  if (inserted.length === 0) return "";
+  const joining = separation.side === "after" ? inserted[0]! : inserted[inserted.length - 1]!;
+  const neighbour =
+    separation.side === "after"
+      ? separation.anchor.document.text[separation.anchor.end - 1]
+      : separation.anchor.document.text[separation.anchor.start];
+
+  if (separation.observed !== null && separation.observed.length > 0) {
+    const already =
+      separation.side === "after"
+        ? inserted.startsWith(separation.observed) || /^\s/u.test(inserted)
+        : inserted.endsWith(separation.observed) || /\s$/u.test(inserted);
+    return already ? "" : separation.observed;
+  }
+
+  const wouldFuse = WORD_EDGE.test(joining) && neighbour !== undefined && WORD_EDGE.test(neighbour);
+  return wouldFuse ? " " : "";
 }
 
 export function isEdit(value: unknown): value is Edit {
@@ -128,8 +213,14 @@ interface PlacedEdit {
 function toTextEdit(entry: Edit, index: number): PlacedEdit {
   const { slice, operation, replacement } = entry;
   const text = replacementText(replacement);
-  if (operation === "insertBefore") return { start: slice.start, end: slice.start, replacement: text, index, entry };
-  if (operation === "insertAfter") return { start: slice.end, end: slice.end, replacement: text, index, entry };
+  if (operation === "insertBefore") {
+    const separated = entry.separation ? text + separatorText(entry.separation, text) : text;
+    return { start: slice.start, end: slice.start, replacement: separated, index, entry };
+  }
+  if (operation === "insertAfter") {
+    const separated = entry.separation ? separatorText(entry.separation, text) + text : text;
+    return { start: slice.end, end: slice.end, replacement: separated, index, entry };
+  }
   return { start: slice.start, end: slice.end, replacement: text, index, entry };
 }
 
