@@ -214,6 +214,30 @@ export class Match<Captures extends CaptureSet = CaptureSet, TNode = unknown> {
     return this.#resolve(handle).length > 0;
   }
 
+  /** How deep the match sits: 0 when nothing in the file contains it. */
+  get depth(): number {
+    let depth = 0;
+    for (let node = this.nodes[0]?.parent; node?.parent; node = node.parent) depth++;
+    return depth;
+  }
+
+  /** True when nothing but the document itself contains this match. */
+  get isTopLevel(): boolean {
+    return this.nodes[0]?.parent === this.parsedDocument.root;
+  }
+
+  /** Every node containing this match, innermost first. */
+  ancestors(): NodeRef<TNode>[] {
+    const chain: NodeRef<TNode>[] = [];
+    for (let node = this.nodes[0]?.parent; node; node = node.parent) chain.push(node);
+    return chain;
+  }
+
+  /** The nearest containing node of this kind, if there is one. */
+  closest(kind: string): NodeRef<TNode> | undefined {
+    return this.ancestors().find((node) => node.kind === kind);
+  }
+
   captures(): CaptureResult<TNode>[] {
     return [...this.#bindings.values()].flat();
   }

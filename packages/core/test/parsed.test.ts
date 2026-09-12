@@ -371,3 +371,33 @@ describe("a capture keeps the trivia it stepped over", () => {
     expect(match.get(first).trailing.text()).toBe("   ");
   });
 });
+
+describe("a match knows where it sits", () => {
+  const inner = capture("inner");
+
+  it("reports its depth and whether anything contains it", () => {
+    const document = toy.parse("(outer (middle (log a)))");
+    const match = document.match(code`(log ${inner})`)!;
+    expect(match.depth).toBe(2);
+    expect(match.isTopLevel).toBe(false);
+
+    const top = toy.parse("(log a)").match(code`(log ${inner})`)!;
+    expect(top.depth).toBe(0);
+    expect(top.isTopLevel).toBe(true);
+  });
+
+  it("lists what contains it, innermost first", () => {
+    const match = toy.parse("(outer (middle (log a)))").match(code`(log ${inner})`)!;
+    expect(match.ancestors().map((node) => node.text().slice(0, 7))).toEqual([
+      "(middle",
+      "(outer ",
+      "(outer ",
+    ]);
+  });
+
+  it("finds the nearest container of a kind", () => {
+    const match = toy.parse("(outer (log a))").match(code`(log ${inner})`)!;
+    expect(match.closest("list")!.text()).toBe("(outer (log a))");
+    expect(match.closest("nothing")).toBeUndefined();
+  });
+});
