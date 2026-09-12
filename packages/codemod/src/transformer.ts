@@ -64,7 +64,7 @@ export interface Transformer {
   /** Every transformer this one is made of; one, unless it is a codemod. */
   readonly transformers: readonly Transformer[];
   appliesTo(path: string): boolean;
-  transformString(source: string, path?: string): string;
+  transformString(source: string, path?: string, writing?: boolean): string;
   transformFile(path: string, options?: RunOptions): Promise<FileResult>;
   transformFiles(paths: readonly string[], options?: RunOptions): Promise<FileResult[]>;
 }
@@ -75,12 +75,13 @@ function toGlobs(fileGlob: string | readonly string[] | undefined): string[] {
 }
 
 function verifyResult(
-  options: { name: string; language: Language<any>; verify: Verifier | undefined },
+  options: { name: string; language: Language<any>; verify: Verifier | false | undefined },
   before: string,
   after: string,
   path?: string,
+  writing = false,
 ): void {
-  const verifier = options.verify;
+  const verifier = options.verify === undefined && writing ? "parses" : options.verify;
   if (!verifier || before === after) return;
 
   if (verifier === "parses") {
@@ -121,13 +122,13 @@ export function createTransformer<TParsed, TNode>(options: TransformerOptions<TP
     },
     appliesTo: (path) => matchesAnyGlob(path, globs),
 
-    transformString(source, path) {
+    transformString(source, path, writing = false) {
       if (path !== undefined && !self.appliesTo(path)) return source;
       const document = options.language.parse(new SourceDocument(source, path)) as ParsedDocument<TParsed, TNode>;
       const produced = options.transform({ file: path, source: document });
       if (produced == null) return source;
       const after = typeof produced === "string" ? produced : produced.text();
-      verifyResult({ name, language: options.language, verify: options.verify }, source, after, path);
+      verifyResult({ name, language: options.language, verify: options.verify }, source, after, path, writing);
       return after;
     },
 
@@ -166,11 +167,11 @@ export function createCodemod(options: CodemodOptions): Transformer {
     transformers,
     appliesTo: (path) => transformers.some((entry) => entry.appliesTo(path)),
 
-    transformString(source, path) {
+    transformString(source, path, writing = false) {
       let text = source;
       for (const entry of transformers) {
         if (path !== undefined && !entry.appliesTo(path)) continue;
-        text = entry.transformString(text, path);
+        text = entry.transformString(text, path, writing);
       }
       return text;
     },
@@ -192,7 +193,7 @@ async function runFile(transformer: Transformer, path: string, options: RunOptio
   let text = before;
   for (const entry of transformer.transformers) {
     if (!entry.appliesTo(path)) continue;
-    const next = entry.transformString(text, path);
+    const next = entry.transformString(text, path, Boolean(options.write));
     if (next !== text) applied.push(entry.name);
     text = next;
   }

@@ -272,3 +272,28 @@ describe("files", () => {
     expect(result.applied).toEqual(["console.log → logger.debug", "warn"]);
   });
 });
+
+describe("verify defaults to parses when a run writes", () => {
+  const breaking = createTransformer({ name: "break it", language: js, transform: () => "const = ;" });
+
+  it("leaves a dry run alone", () => {
+    expect(breaking.transformString("const a = 1;")).toBe("const = ;");
+  });
+
+  it("refuses to write source that no longer parses", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "sm-verify-"));
+    const file = join(directory, "a.js");
+    await writeFile(file, "const a = 1;\n", "utf8");
+    await expect(breaking.transformFile(file, { write: true })).rejects.toThrow(/no longer parses/);
+    expect(await readFile(file, "utf8")).toBe("const a = 1;\n");
+  });
+
+  it("can be turned off", async () => {
+    const loud = createTransformer({ language: js, transform: () => "const = ;", verify: false });
+    const directory = await mkdtemp(join(tmpdir(), "sm-verify-"));
+    const file = join(directory, "a.js");
+    await writeFile(file, "const a = 1;\n", "utf8");
+    await loud.transformFile(file, { write: true });
+    expect(await readFile(file, "utf8")).toBe("const = ;");
+  });
+});
