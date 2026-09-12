@@ -211,6 +211,16 @@ function compileHoleValue(value: HoleValue, parentKind: string | null, context: 
   const { adapter } = context;
   switch (value.kind) {
     case "capture": {
+      if (value.shape) {
+        // A capture given a shape binds what that shape matches, once.
+        return {
+          t: "rep",
+          item: compileItemValue(value.shape as unknown as ItemValue, context),
+          min: 1,
+          max: 1,
+          spanCapture: value,
+        };
+      }
       const { min, max } = holeCardinality(adapter, parentKind);
       return { t: "rep", item: { t: "hole1", capture: null }, min, max, spanCapture: value };
     }

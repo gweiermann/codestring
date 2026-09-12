@@ -5,13 +5,19 @@ import { PatternCompileError } from "./errors.js";
  * match; a Match does. The same handle can therefore be used by several
  * patterns and matched concurrently.
  */
-export class Capture<Name extends string | undefined = string | undefined> {
+export class Capture<
+  Name extends string | undefined = string | undefined,
+  Inner extends CaptureSet = NoCaptures,
+> {
   readonly kind = "capture" as const;
   readonly name: Name;
   readonly id: string;
+  /** The shape this binds, when it was given one; otherwise any single node. */
+  readonly shape: FragmentLike<Inner> | undefined;
 
-  constructor(name: Name) {
+  constructor(name: Name, shape?: FragmentLike<Inner>) {
     this.name = name;
+    this.shape = shape;
     this.id = `capture#${nextCaptureId++}${name ? `(${name})` : ""}`;
     Object.freeze(this);
   }
@@ -69,7 +75,7 @@ export class Choice<Options extends SimpleItem = SimpleItem> {
   }
 }
 
-export type AnyCapture = Capture<any>;
+export type AnyCapture = Capture<any, any>;
 
 /** The three cardinalities a pattern can bind a handle with. */
 export interface CaptureSet {
@@ -108,8 +114,8 @@ type IsAtMostOne<Max extends number> = number extends Max ? false : Max extends 
 type IsNeverEmpty<Min extends number> = number extends Min ? false : Min extends 0 ? false : true;
 
 /** Every handle reachable from a pattern value, whatever its cardinality. */
-export type CapturesIn<Value> = Value extends AnyCapture
-  ? Value
+export type CapturesIn<Value> = Value extends Capture<any, infer Inner>
+  ? Value | Inner["one"] | Inner["optional"] | Inner["many"]
   : Value extends Repeat<infer Item, number, number>
     ? CapturesIn<Item>
     : Value extends Choice<infer Options>
@@ -121,8 +127,8 @@ export type CapturesIn<Value> = Value extends AnyCapture
           : never;
 
 /** Handles that bind exactly once, so `get()` always returns a result. */
-export type SingleOf<Value> = Value extends AnyCapture
-  ? Value
+export type SingleOf<Value> = Value extends Capture<any, infer Inner>
+  ? Value | Inner["one"]
   : Value extends Repeat<infer Item, infer Min, infer Max>
     ? IsAtMostOne<Max> extends true
       ? IsNeverEmpty<Min> extends true
@@ -138,8 +144,8 @@ export type SingleOf<Value> = Value extends AnyCapture
           : never;
 
 /** Handles that bind at most once, so `get()` may return undefined. */
-export type OptionalOf<Value> = Value extends AnyCapture
-  ? never
+export type OptionalOf<Value> = Value extends Capture<any, infer Inner>
+  ? Inner["optional"]
   : Value extends Repeat<infer Item, infer Min, infer Max>
     ? IsAtMostOne<Max> extends true
       ? IsNeverEmpty<Min> extends true
@@ -155,8 +161,8 @@ export type OptionalOf<Value> = Value extends AnyCapture
           : never;
 
 /** Handles that can bind more than once, so only `getAll()` makes sense. */
-export type ManyOf<Value> = Value extends AnyCapture
-  ? never
+export type ManyOf<Value> = Value extends Capture<any, infer Inner>
+  ? Inner["many"]
   : Value extends Repeat<infer Item, number, infer Max>
     ? IsAtMostOne<Max> extends true
       ? never
@@ -185,11 +191,15 @@ export type NamesOf<Handles> = Handles extends Capture<infer Name>
 
 export function capture(): Capture<undefined>;
 export function capture<const Name extends string>(name: Name): Capture<Name>;
-export function capture(name?: string): Capture<string | undefined> {
+export function capture<const Name extends string, Inner extends CaptureSet>(
+  name: Name,
+  shape: FragmentLike<Inner>,
+): Capture<Name, Inner>;
+export function capture(name?: string, shape?: FragmentLike<any>): Capture<string | undefined, any> {
   if (name !== undefined && typeof name !== "string") {
     throw new TypeError("capture(name) takes an optional string name");
   }
-  return new Capture(name);
+  return new Capture(name, shape);
 }
 
 export function any(): AnyHole {

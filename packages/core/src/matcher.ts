@@ -107,6 +107,11 @@ class MatchContext<TNode> {
 function matchNodeIR<TNode>(ir: PatternIR & { t: "node" }, node: NodeRef<TNode>, ctx: MatchContext<TNode>): boolean {
   ctx.step();
   if (ir.kind !== node.kind) {
+    // A wrapper the parser adds around a fragment is transparent on the source
+    // side too, so a pattern written as an expression still matches where the
+    // grammar wrapped it in a statement.
+    const inner = transparentChild(node, ctx);
+    if (inner) return matchNodeIR(ir, inner, ctx);
     ctx.note({ reason: "kind", offset: node.start, expected: ir.kind, actual: node.kind, node });
     return false;
   }
@@ -139,6 +144,13 @@ function matchNodeIR<TNode>(ir: PatternIR & { t: "node" }, node: NodeRef<TNode>,
   const matched = matchSequence(ir.children, 0, children, 0, ctx, (end) => end === children.length);
   ctx.emptyAnchor = previousAnchor;
   return matched;
+}
+
+/** The single child of a wrapper node the adapter calls transparent. */
+function transparentChild<TNode>(node: NodeRef<TNode>, ctx: MatchContext<TNode>): NodeRef<TNode> | null {
+  if (!ctx.adapter.isPatternWrapper?.(node.kind)) return null;
+  const children = filterTrivia(node.children, ctx.trivia);
+  return children.length === 1 ? children[0]! : null;
 }
 
 function matchItem<TNode>(item: PatternIR, node: NodeRef<TNode>, ctx: MatchContext<TNode>): boolean {
