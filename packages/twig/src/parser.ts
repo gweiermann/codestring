@@ -122,6 +122,11 @@ export function parseTwig(source: string): TwigParsed {
     const frame = stack.pop()!;
     frame.node.end = source.length;
     frame.container.end = source.length;
+    const closeNode = frame.node.children[2];
+    if (closeNode) {
+      closeNode.start = source.length;
+      closeNode.end = source.length;
+    }
     frame.node.error = true;
     diagnostics.push({
       message: `{% ${frame.name} %} is never closed with {% end${frame.name} %}`,
@@ -154,15 +159,20 @@ function handleTag(input: {
   const container = frame.container;
 
   if (name && name.startsWith("end") && name.length > 3) {
-    const closing = name.slice(3);
-    if (stack.length > 1 && frame.name === closing) {
+    const closingName = name.slice(3);
+    if (stack.length > 1 && frame.name === closingName) {
       stack.pop();
       frame.container.end = open;
       frame.node.end = end;
+      const closeNode = frame.node.children[2];
+      if (closeNode) {
+        closeNode.start = open;
+        closeNode.end = end;
+      }
       return undefined;
     }
     diagnostics.push({
-      message: `{% ${name} %} does not close an open {% ${closing} %}`,
+      message: `{% ${name} %} does not close an open {% ${closingName} %}`,
       severity: "error",
       range: { start: open, end },
     });
@@ -184,9 +194,13 @@ function handleTag(input: {
     return undefined;
   }
 
+  // The delimiters are nodes of their own, so a rewrite can address the opening
+  // or closing tag without computing where it ends.
   const args = node("args", argsStart, close, tokens(argsText, argsStart));
+  const opening = node("tag-open", open, end, [args]);
   const body = node("body", end, end);
-  const tag = node(`tag:${name}`, open, end, [args, body]);
+  const closing = node("tag-close", end, end);
+  const tag = node(`tag:${name}`, open, end, [opening, body, closing]);
   container.children.push(tag);
 
   if (name === "verbatim") {
@@ -196,6 +210,8 @@ function handleTag(input: {
     if (stop > end) body.children.push(node("text", end, stop));
     body.end = stop;
     tag.end = endTag === -1 ? source.length : endTag + "{% endverbatim %}".length;
+    closing.start = stop;
+    closing.end = tag.end;
     if (endTag === -1) {
       tag.error = true;
       diagnostics.push({

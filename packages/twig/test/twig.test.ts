@@ -9,7 +9,7 @@ describe("twig parsing", () => {
     const parsed = twig.parse("{% block content %}hi{% endblock %}");
     const block = parsed.root.children[0]!;
     expect(block.kind).toBe("tag:block");
-    expect(block.children.map((child) => child.kind)).toEqual(["args", "body"]);
+    expect(block.children.map((child) => child.kind)).toEqual(["tag-open", "body", "tag-close"]);
     expect(block.children[1]!.text()).toBe("hi");
   });
 
@@ -165,5 +165,33 @@ describe("a tag whose only content is whitespace", () => {
     const pattern = code`{% if A %}${kept}{% else %}${capture("b")}{% endif %}`;
     expect(twig.parse("{% if A %}x{%else%}y{% endif %}").includes(pattern)).toBe(true);
     expect(twig.parse("{% if A %}x{%   else   %}y{% endif %}").includes(pattern)).toBe(true);
+  });
+});
+
+describe("the delimiters are nodes", () => {
+  it("names the opening and closing tags", () => {
+    const parsed = twig.parse("{% block a %}body{% endblock %}");
+    const [opening, body, closing] = parsed.root.children[0]!.children;
+    expect(opening!.text()).toBe("{% block a %}");
+    expect(body!.text()).toBe("body");
+    expect(closing!.text()).toBe("{% endblock %}");
+  });
+
+  it("lets a rewrite replace one delimiter without touching the body", () => {
+    const name = capture("name");
+    const source = "{% block sw_product %}\n    <p>Hi</p>\n{% endblock %}";
+    const match = twig.parse(source).match(code`{% block ${name} %}${capture("body")}{% endblock %}`)!;
+    const [opening, , closing] = match.nodes[0]!.children;
+    const result = match.transform([
+      match.replace(opening!)`<sw-block name="${name}">`,
+      match.replace(closing!)`</sw-block>`,
+    ]);
+    expect(result).toBe('<sw-block name="sw_product">\n    <p>Hi</p>\n</sw-block>');
+  });
+
+  it("keeps them right for a tag written across lines", () => {
+    const parsed = twig.parse("{% block\n  a\n%}x{% endblock %}");
+    const [opening] = parsed.root.children[0]!.children;
+    expect(opening!.text()).toBe("{% block\n  a\n%}");
   });
 });
