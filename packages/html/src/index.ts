@@ -186,6 +186,13 @@ export const htmlAdapter = defineAdapter<HtmlParsed, HtmlNode>({
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => kind === "fragment" || kind === "attributes" || kind.startsWith("element:"),
 
+  /** A value written into markup must not be able to open a tag or close a quote. */
+  escape(value, { kind }) {
+    const base = value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
+    const inAttribute = kind === "attribute" || kind === "attribute-value" || kind === "attributes";
+    return inAttribute ? base.replace(/"/gu, "&quot;") : base;
+  },
+
   placeholder(_index, { before, fallback }) {
     return padPlaceholder(fallback, before, { needsSpace: isInsideDelimiter(before, "<", ">") });
   },

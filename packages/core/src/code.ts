@@ -64,8 +64,15 @@ export class CodeFragment<Captures extends CaptureSet = CaptureSet> {
     return pattern;
   }
 
-  /** Use the fragment as replacement source, binding its handles to a match. */
-  toTemplate(languageId: string, match?: CaptureLookup): SourceTemplate {
+  /**
+   * Use the fragment as replacement source, binding its handles to a match.
+   *
+   * A plain value is escaped for wherever it lands — a quote inside a string
+   * literal, a `<` inside markup — because it came from the program and not
+   * from a file. A source slice never is: it is already source, and keeping it
+   * byte for byte is the whole point.
+   */
+  toTemplate(language: EscapingLanguage | string, match?: CaptureLookup): SourceTemplate {
     for (const value of this.values) {
       const kind = (value as { kind?: string } | null)?.kind;
       if (kind === "any" || kind === "repeat" || kind === "choice") {
@@ -74,7 +81,9 @@ export class CodeFragment<Captures extends CaptureSet = CaptureSet> {
         );
       }
     }
-    const template = buildSourceTemplate(this.strings, this.values as never[], languageId);
+    const resolved = typeof language === "string" ? null : language;
+    const values = resolved ? escapePlainValues(this.strings, this.values, resolved) : this.values;
+    const template = buildSourceTemplate(this.strings, values as never[], resolved?.id ?? (language as string));
     return match ? template.resolveWith(match) : template;
   }
 
@@ -86,6 +95,64 @@ export class CodeFragment<Captures extends CaptureSet = CaptureSet> {
   toString(): string {
     return this.strings.join("…");
   }
+}
+
+/** What escaping needs: an adapter that declares it, and a way to parse. */
+export interface EscapingLanguage {
+  readonly id: string;
+  readonly adapter: { escape?(value: string, context: { kind: string }): string };
+  parse(input: string): { nodeAt(offset: number): { kind: string } | undefined };
+}
+
+const contexts = new WeakMap<readonly string[], Map<string, readonly (string | null)[]>>();
+
+/** Which syntactic context each hole of this replacement lands in. */
+function holeContexts(strings: readonly string[], language: EscapingLanguage): readonly (string | null)[] {
+  const cached = contexts.get(strings)?.get(language.id);
+  if (cached) return cached;
+
+  let source = strings[0] ?? "";
+  const offsets: number[] = [];
+  for (let i = 1; i < strings.length; i++) {
+    offsets.push(source.length);
+    source += `__sm_hole_${i - 1}__${strings[i] ?? ""}`;
+  }
+
+  let kinds: readonly (string | null)[];
+  try {
+    const parsed = language.parse(source);
+    kinds = offsets.map((offset) => parsed.nodeAt(offset)?.kind ?? null);
+  } catch {
+    // Replacement source is not required to parse on its own; when it does not,
+    // nothing is escaped rather than something being escaped wrongly.
+    kinds = offsets.map(() => null);
+  }
+
+  let perLanguage = contexts.get(strings);
+  if (!perLanguage) {
+    perLanguage = new Map();
+    contexts.set(strings, perLanguage);
+  }
+  perLanguage.set(language.id, kinds);
+  return kinds;
+}
+
+function escapePlainValues(
+  strings: readonly string[],
+  values: readonly unknown[],
+  language: EscapingLanguage,
+): readonly unknown[] {
+  const escape = language.adapter.escape;
+  if (!escape) return values;
+  const plain = values.map((value) => typeof value === "string" || typeof value === "number");
+  if (!plain.some(Boolean)) return values;
+
+  const kinds = holeContexts(strings, language);
+  return values.map((value, index) => {
+    const kind = kinds[index];
+    if (!plain[index] || kind === null || kind === undefined) return value;
+    return escape(String(value), { kind });
+  });
 }
 
 export function isCodeFragment(value: unknown): value is CodeFragment<any> {

@@ -39,7 +39,7 @@ export interface TransformerOptions<TParsed = any, TNode = any> {
   /** The whole rule. Return the rewritten source, or nothing to skip the file. */
   readonly transform: (context: TransformContext<TParsed, TNode>) => TransformResult<TParsed, TNode>;
   /** Checked once per rewritten file, before the result is handed back. */
-  readonly verify?: Verifier;
+  readonly verify?: Verifier | false;
 }
 
 export interface FileResult {

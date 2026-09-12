@@ -56,6 +56,14 @@ export interface LanguageAdapter<TParsed = unknown, TNode = unknown, TToken = un
    */
   compareText?(node: TNode, text: string): string;
 
+  /**
+   * Make a plain value safe to write into this syntactic context — a quote
+   * inside a string literal, a `<` inside markup. Source slices are never
+   * passed through this: they are already source, and keeping them byte for
+   * byte is the point. Leave it out and values are written as they are.
+   */
+  escape?(value: string, context: { kind: string }): string;
+
   /** Does this kind hold an unbounded list of children? Decides whether a bare hole is a run. */
   isVariadic?(kind: string): boolean;
   /** A node the parser adds around a fragment, which a pattern should see through. */

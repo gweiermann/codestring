@@ -401,3 +401,16 @@ describe("a match knows where it sits", () => {
     expect(match.closest("nothing")).toBeUndefined();
   });
 });
+
+describe("explain", () => {
+  it("says what the matcher expected and what it read", () => {
+    const explanation = toy.parse("(diff 1 2)").explain(code`(sum 1 2)`);
+    expect(explanation).toContain("no match");
+    expect(explanation).toMatch(/expected:\s+sum/);
+    expect(explanation).toMatch(/actual:\s+diff/);
+  });
+
+  it("says so when the query does match", () => {
+    expect(toy.parse("(sum 1 2)").explain(code`(sum 1 2)`)).toContain("matched 1 time");
+  });
+});

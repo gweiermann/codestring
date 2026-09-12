@@ -145,6 +145,15 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
     return this.#pattern(query).matches(this);
   }
 
+  /**
+   * Why a query found nothing here — the deepest place the matcher got stuck,
+   * with what it expected and what it read instead. Reach for this the moment a
+   * pattern silently does nothing.
+   */
+  explain(query: Query<any, TNode>): string {
+    return this.#pattern(query).explain(this);
+  }
+
   /** Innermost node containing an offset, for inspecting what is at a position. */
   nodeAt(offset: number): NodeRef<TNode> | undefined {
     let found: NodeRef<TNode> | undefined;
@@ -183,7 +192,7 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
       else if (typeof produced === "object" && "operation" in produced) next = [produced as Edit];
       else {
         const replacement = isCodeFragment(produced)
-          ? produced.toTemplate(this.language.id, match)
+          ? produced.toTemplate(this.language as never, match)
           : (produced as string);
         next = [replace(match, replacement)];
       }
@@ -244,7 +253,7 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
       const produced = typeof to === "function" ? to(match) : to;
       if (produced == null) continue;
       const text = isCodeFragment(produced)
-        ? produced.toTemplate(this.language.id, match)
+        ? produced.toTemplate(this.language as never, match)
         : (produced as string);
       edits.push(build(match, text));
     }

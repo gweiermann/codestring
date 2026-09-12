@@ -246,6 +246,17 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => VARIADIC.has(kind),
 
+  /** A value written into a string literal must not be able to end it. */
+  escape(value, { kind }) {
+    if (kind === "Literal") {
+      return value.replace(/[\\"']/gu, "\\$&").replace(/\n/gu, "\\n").replace(/\r/gu, "\\r");
+    }
+    if (kind === "TemplateLiteral" || kind === "TemplateElement") {
+      return value.replace(/[\\`]/gu, "\\$&").replace(/\$\{/gu, "\\${");
+    }
+    return value;
+  },
+
   /** A string is what it says, not which quotes it was written with. */
   compareText(node, text) {
     if (node.kind !== "Literal" || !/^["']/u.test(text)) return text;

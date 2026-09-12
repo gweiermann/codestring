@@ -1,7 +1,8 @@
 import { CaptureCardinalityError, formatLocation } from "./errors.js";
 import { SourceDocument, SourceSlice } from "./source.js";
 import { type Edit, type EditTargetInput, applyEdits, insertAfter, insertBefore, remove, replace } from "./edits.js";
-import { type SourceTemplate, type SourceValue, buildSourceTemplate } from "./template.js";
+import type { SourceTemplate, SourceValue } from "./template.js";
+import { CodeFragment } from "./code.js";
 import type { AnyCapture, CaptureSet, NamesOf } from "./captures.js";
 import type { NodeRef } from "./nodes.js";
 import type { ParsedDocument } from "./parsed.js";
@@ -261,7 +262,13 @@ export class Match<Captures extends CaptureSet = CaptureSet, TNode = unknown> {
     target: EditTargetInput,
   ): EditTag<Captures> {
     return (strings, ...values) =>
-      build(target, buildSourceTemplate(strings as unknown as readonly string[], values, this.language).resolveWith(this));
+      build(
+        target,
+        new CodeFragment(strings as unknown as readonly string[], values).toTemplate(
+          this.parsedDocument.language as never,
+          this,
+        ),
+      );
   }
 
   #editFactory(build: (target: EditTargetInput, replacement: SourceValue) => Edit): EditFactory<Captures> {

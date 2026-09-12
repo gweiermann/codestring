@@ -90,5 +90,5 @@ export function buildReplacement(
   }
   parts.push(template.slice(last));
 
-  return new CodeFragment(parts, values).toTemplate(language.id, match);
+  return new CodeFragment(parts, values).toTemplate(language as never, match);
 }
