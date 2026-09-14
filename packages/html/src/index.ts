@@ -145,8 +145,9 @@ function convert(current: Parse5Node, source: string): HtmlNode[] {
   }
 
   const element = current as Parse5Element;
-  const startTag = location.startTag ?? location;
-  const endTag = location.endTag;
+  const elementLocation = location as NonNullable<Parse5Element["sourceCodeLocation"]>;
+  const startTag = elementLocation.startTag ?? location;
+  const endTag = elementLocation.endTag;
 
   // The tags are nodes of their own, so a rewrite can address the opening or
   // closing tag without working out where each one ends.
