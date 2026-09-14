@@ -102,3 +102,14 @@ describe("nested elements keep their own tags", () => {
     expect(matches.map((match) => match.text())).toEqual([source, `<sw-block name="b">x</sw-block>`]);
   });
 });
+
+describe("a directive argument says whether it is static", () => {
+  it("names a written argument apart from a computed one", () => {
+    const named = vue.parse("<template #footer>x</template>").nodes().map((node) => node.kind);
+    expect(named).toContain("directive-argument");
+
+    const dynamic = vue.parse("<template #[slotName]>x</template>").nodes().map((node) => node.kind);
+    expect(dynamic).toContain("directive-argument-dynamic");
+    expect(dynamic).not.toContain("directive-argument");
+  });
+});

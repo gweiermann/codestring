@@ -47,7 +47,15 @@ const range = (loc: { start: { offset: number }; end: { offset: number } }) => (
 function directiveNode(prop: DirectiveNode): VueNode {
   const { start, end } = range(prop.loc);
   const children: VueNode[] = [];
-  if (prop.arg) children.push(node("directive-argument", range(prop.arg.loc).start, range(prop.arg.loc).end));
+  if (prop.arg) {
+    // `#footer` and `#[name]` differ in what they can be proven to address, so
+    // the kind says which it is rather than the caller reaching for `isStatic`.
+    const argument = prop.arg;
+    const isStatic = argument.type === NodeTypes.SIMPLE_EXPRESSION && argument.isStatic;
+    children.push(
+      node(isStatic ? "directive-argument" : "directive-argument-dynamic", range(argument.loc).start, range(argument.loc).end),
+    );
+  }
   if (prop.exp) children.push(node("expression", range(prop.exp.loc).start, range(prop.exp.loc).end));
   return node(`directive:${prop.name}`, start, end, children, { name: prop.name, raw: prop });
 }
