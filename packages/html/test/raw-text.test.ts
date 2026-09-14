@@ -27,7 +27,16 @@ describe("a closing tag inside an embedded string", () => {
 
   it("leaves the rest of the line as markup, not as script", () => {
     const kinds = html.parse(source).nodes().map((node) => node.kind);
-    expect(kinds).toEqual(["fragment", "element:script", "attributes", "text", "text", "whitespace"]);
+    expect(kinds).toEqual([
+      "fragment",
+      "element:script",
+      "tag-open",
+      "attributes",
+      "text",
+      "tag-close",
+      "text",
+      "whitespace",
+    ]);
   });
 
   it("reports the truncated region as broken JavaScript", () => {

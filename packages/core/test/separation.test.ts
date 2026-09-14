@@ -16,7 +16,7 @@ describe("an insert keeps the list it lands in well formed", () => {
 
   it("reads the separator off an attribute list, which is a space", () => {
     const match = html.parse(`<div class="a" id="b">x</div>`).match(code`<div ${any()}>${any()}</div>`)!;
-    const attributes = match.nodes[0]!.children[0]!;
+    const attributes = match.nodes[0]!.children[0]!.children[0]!;
     const last = attributes.children[attributes.children.length - 1]!;
     expect(match.transform([match.insertAfter(last)`v-if="x"`])).toBe(
       `<div class="a" id="b" v-if="x">x</div>`,
@@ -35,7 +35,7 @@ describe("an insert keeps the list it lands in well formed", () => {
 
   it("does nothing when the text already carries the separation", () => {
     const match = html.parse(`<div class="a" id="b">x</div>`).match(code`<div ${any()}>${any()}</div>`)!;
-    const attributes = match.nodes[0]!.children[0]!;
+    const attributes = match.nodes[0]!.children[0]!.children[0]!;
     const last = attributes.children[attributes.children.length - 1]!;
     expect(match.transform([match.insertAfter(last)` v-if="x"`])).toBe(
       `<div class="a" id="b" v-if="x">x</div>`,

@@ -9,26 +9,29 @@ describe("html parsing", () => {
     const parsed = html.parse('<div class="a">text</div>');
     const div = parsed.root.children[0]!;
     expect(div.kind).toBe("element:div");
-    expect(div.children.map((child) => child.kind)).toEqual(["attributes", "text"]);
+    expect(div.children.map((child) => child.kind)).toEqual(["tag-open", "text", "tag-close"]);
     expect(
-      div.children[0]!.children.filter((child) => child.kind === "attribute").map((child) => child.text()),
+      div.children[0]!.children[0]!.children
+        .filter((child) => child.kind === "attribute")
+        .map((child) => child.text()),
     ).toEqual(['class="a"']);
   });
 
   it("splits indentation off a text run", () => {
     const parsed = html.parse("<p>\n  hi\n</p>");
     expect(parsed.root.children[0]!.children.map((child) => child.kind)).toEqual([
-      "attributes",
+      "tag-open",
       "whitespace",
       "text",
       "whitespace",
+      "tag-close",
     ]);
   });
 
   it("reads the content of a template element", () => {
     const parsed = html.parse("<template><p>x</p></template>");
     const kinds = parsed.root.children[0]!.children.map((child) => child.kind);
-    expect(kinds).toEqual(["attributes", "element:p"]);
+    expect(kinds).toEqual(["tag-open", "element:p", "tag-close"]);
   });
 
   it("marks comments as trivia", () => {
@@ -74,7 +77,7 @@ describe("html matching", () => {
   it("splits an attribute into its name and its value", () => {
     const attribute = html
       .parse('<div class="a b">x</div>')
-      .root.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
+      .root.children[0]!.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
     expect(attribute.children.map((child) => [child.kind, child.text()])).toEqual([
       ["attribute-name", "class"],
       ["attribute-value", "a b"],
@@ -84,7 +87,7 @@ describe("html matching", () => {
   it("gives a valueless attribute only a name", () => {
     const attribute = html
       .parse("<input disabled>")
-      .root.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
+      .root.children[0]!.children[0]!.children[0]!.children.find((child) => child.kind === "attribute")!;
     expect(attribute.children.map((child) => child.kind)).toEqual(["attribute-name"]);
   });
 
@@ -133,5 +136,48 @@ describe("html transforms", () => {
     ]);
     expect(result).toBe(source.replace("<p>keep\tthis</p>", "<sw-block><p>keep\tthis</p></sw-block>"));
     expect(result).toContain("\r\n\t\t");
+  });
+});
+
+describe("the tags are nodes", () => {
+  it("names the opening and closing tags", () => {
+    const parsed = html.parse('<div class="a">text</div>');
+    const [opening, content, closing] = parsed.root.children[0]!.children;
+    expect(opening!.kind).toBe("tag-open");
+    expect(opening!.text()).toBe('<div class="a">');
+    expect(content!.text()).toBe("text");
+    expect(closing!.text()).toBe("</div>");
+  });
+
+  it("keeps the attributes inside the opening tag", () => {
+    const parsed = html.parse('<div class="a" id="b">x</div>');
+    const attributes = parsed.root.children[0]!.children[0]!.children[0]!;
+    expect(attributes.kind).toBe("attributes");
+    expect(
+      attributes.children.filter((child) => child.kind === "attribute").map((child) => child.text()),
+    ).toEqual(['class="a"', 'id="b"']);
+  });
+
+  it("gives a void element no closing tag", () => {
+    const parsed = html.parse("<br>");
+    expect(parsed.root.children[0]!.children.map((child) => child.kind)).toEqual(["tag-open"]);
+  });
+
+  it("lets a rewrite swap two elements by their tags alone", () => {
+    const inner = capture("inner");
+    const source = '<sw-block name="a">\n  <template #default>\n    <p>x</p>\n  </template>\n</sw-block>';
+    const match = html.parse(source).match(code`<sw-block ${any()}>${inner}</sw-block>`)!;
+    const block = match.nodes[0]!;
+    const child = match.get(inner).nodes.find((node) => node.kind.startsWith("element:"))!;
+
+    const result = match.transform([
+      match.replace(block.children[0]!)`${child.children[0]!.slice()}`,
+      match.replace(block.children[block.children.length - 1]!)`${child.children[child.children.length - 1]!.slice()}`,
+      match.replace(child.children[0]!)`${block.children[0]!.slice()}`,
+      match.replace(child.children[child.children.length - 1]!)`${block.children[block.children.length - 1]!.slice()}`,
+    ]);
+    expect(result).toBe(
+      '<template #default>\n  <sw-block name="a">\n    <p>x</p>\n  </sw-block>\n</template>',
+    );
   });
 });

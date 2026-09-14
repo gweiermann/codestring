@@ -40,7 +40,7 @@ export const topLevelBlocksToExtends = createTransformer({
       // Rewriting only the attribute region leaves the element's own layout
       // alone; rebuilding the whole element from a template would not, because
       // a capture binds the nodes inside it and not the whitespace around them.
-      const attributes = element.children[0];
+      const attributes = element.children[0]?.children[0];
       // The attributes region starts right after the tag name, so it owns the
       // space before the first attribute and the replacement has to put it back.
       return attributes ? match.replace(attributes)` extends="${blockName}"` : null;

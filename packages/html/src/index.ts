@@ -145,10 +145,21 @@ function convert(current: Parse5Node, source: string): HtmlNode[] {
   }
 
   const element = current as Parse5Element;
+  const startTag = location.startTag ?? location;
+  const endTag = location.endTag;
+
+  // The tags are nodes of their own, so a rewrite can address the opening or
+  // closing tag without working out where each one ends.
+  const opening = node("tag-open", startTag.startOffset, startTag.endOffset, [
+    attributeContainer(element, location, source),
+  ]);
+  const closing = endTag ? [node("tag-close", endTag.startOffset, endTag.endOffset)] : [];
+
   return [
     node(`element:${element.tagName}`, location.startOffset, location.endOffset, [
-      attributeContainer(element, location, source),
+      opening,
       ...children,
+      ...closing,
     ]),
   ];
 }
