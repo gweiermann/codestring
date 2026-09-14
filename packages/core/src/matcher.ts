@@ -106,6 +106,19 @@ class MatchContext<TNode> {
 
 function matchNodeIR<TNode>(ir: PatternIR & { t: "node" }, node: NodeRef<TNode>, ctx: MatchContext<TNode>): boolean {
   ctx.step();
+  if (ir.kind === null) {
+    // The pattern left the kind open, so only what is inside has to agree.
+    const children = filterTrivia(node.children, ctx.trivia);
+    const previousAnchor = ctx.emptyAnchor;
+    ctx.emptyAnchor = children.length > 0 ? children[0]!.start : node.start;
+    const matched =
+      ir.children.length === 0
+        ? true
+        : matchSequence(ir.children, 0, children, 0, ctx, (end) => end === children.length);
+    ctx.emptyAnchor = previousAnchor;
+    if (matched && ir.capture) ctx.bind(ir.capture, [node], node.start, node.end);
+    return matched;
+  }
   if (ir.kind !== node.kind) {
     // A wrapper the parser adds around a fragment is transparent on the source
     // side too, so a pattern written as an expression still matches where the
@@ -261,7 +274,7 @@ function spanBounds<TNode>(
 function describeItem(item: PatternIR): string {
   switch (item.t) {
     case "node":
-      return item.kind;
+      return item.kind ?? "any kind";
     case "hole1":
       return item.capture ? item.capture.toString() : "any()";
     case "alt":

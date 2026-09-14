@@ -17,7 +17,10 @@ export const TRIVIA_POLICIES: ReadonlySet<TriviaPolicy> = new Set<TriviaPolicy>(
 
 export interface NodeIR {
   readonly t: "node";
-  readonly kind: string;
+  /** The kind this must match, or null when the pattern left the kind open. */
+  readonly kind: string | null;
+  /** Bound to whatever node matched, when the open kind was captured. */
+  readonly capture?: AnyCapture | null;
   readonly leaf: boolean;
   readonly text: string | null;
   readonly children: readonly PatternIR[];
@@ -202,6 +205,7 @@ function holeCardinality(adapter: AnyAdapter, parentKind: string | null) {
 interface CompileContext {
   readonly language: CompileLanguage;
   readonly adapter: AnyAdapter;
+  readonly placeholders: readonly string[];
   readonly holes: readonly HoleValue[];
   readonly trivia: TriviaPolicy;
   readonly used: Set<number>;
@@ -304,8 +308,54 @@ export function comparisonText(adapter: AnyAdapter, node: NodeRef<unknown>): str
   return adapter.compareText ? adapter.compareText(node.raw, text) : text;
 }
 
+/**
+ * A placeholder can land in a node's *kind* rather than in its text, wherever an
+ * adapter folds a name from the source into the kind — an HTML tag name. The
+ * core generated the placeholder, so it recognises it there itself; the adapter
+ * only had to spell it so the parser would accept it in that position.
+ */
+function openKind(placeholders: readonly string[], kind: string): number | null {
+  for (let index = 0; index < placeholders.length; index++) {
+    if (kind.includes(placeholders[index]!.trim())) return index;
+  }
+  return null;
+}
+
 function toIR<TNode>(node: NodeRef<TNode>, parentKind: string | null, context: CompileContext): PatternIR {
+  const open = openKind(context.placeholders, node.kind);
+  if (open !== null) {
+    context.used.add(open);
+    const opened = context.holes[open];
+    const openChildren = filterTrivia(node.children, context.trivia).map((child) =>
+      toIR(child, node.kind, context),
+    );
+    return {
+      t: "node",
+      kind: null,
+      capture: opened?.kind === "capture" ? opened : null,
+      leaf: false,
+      text: null,
+      children: openChildren,
+    };
+  }
+
   const index = detectPlaceholder(context.adapter, node as NodeRef<unknown>);
+
+  // A hole the adapter did not accept, sitting in a leaf that carries it — the
+  // name in a closing tag, which repeats what the opening tag already said.
+  // Nothing more is learned from it, so it matches whatever is there.
+  if (index === null && node.children.length === 0) {
+    const echoed = openKind(context.placeholders, node.text());
+    const placeholder = echoed === null ? "" : context.placeholders[echoed]!.trim();
+    // Only when the leaf is the hole plus punctuation — `</sm-hole-0>`. A hole
+    // with real text beside it was folded into that text and still has to fail.
+    const onlyPunctuation = echoed !== null && !/\w/u.test(node.text().replace(placeholder, ""));
+    if (echoed !== null && onlyPunctuation) {
+      context.used.add(echoed);
+      return { t: "node", kind: null, capture: null, leaf: false, text: null, children: [] };
+    }
+  }
+
   if (index !== null) {
     context.used.add(index);
     const value = context.holes[index];
@@ -344,6 +394,11 @@ function assertEveryHoleLanded<TNode>(input: {
   for (let index = 0; index < holes.length; index++) {
     if (used.has(index)) continue;
     const placeholder = placeholders[index]!.trim();
+    // Two holes the adapter spelled the same way cannot be told apart in the
+    // parsed pattern, and it spelled them that way on purpose — a closing tag
+    // repeating its opening name. One landing covers both.
+    const twin = [...used].some((landed) => placeholders[landed]!.trim() === placeholder);
+    if (twin) continue;
     let culprit: NodeRef<TNode> | null = null;
     for (const node of walk(root)) {
       if (node.text().includes(placeholder)) culprit = node;
@@ -430,7 +485,7 @@ export function compilePattern(input: {
   }
 
   const root = normalize({ adapter, parsed, document, origin: 0, localLength: source.length });
-  const context: CompileContext = { language, adapter, holes, trivia, used: new Set<number>() };
+  const context: CompileContext = { language, adapter, placeholders, holes, trivia, used: new Set<number>() };
   const items = filterTrivia(root.children, trivia)
     .map((child) => unwrapPatternRoot(child, adapter, trivia))
     .map(({ node, parentKind }) => toIR(node, parentKind, context));
@@ -462,7 +517,10 @@ export function describeIR(items: readonly PatternIR[], indent = ""): string {
   const render = (item: PatternIR, pad: string): void => {
     switch (item.t) {
       case "node":
-        lines.push(`${pad}${item.kind}${item.leaf ? ` ${JSON.stringify(item.text)}` : ""}`);
+        lines.push(
+          `${pad}${item.kind ?? `any kind${item.capture ? ` as ${item.capture}` : ""}`}` +
+            `${item.leaf && item.kind ? ` ${JSON.stringify(item.text)}` : ""}`,
+        );
         for (const child of item.children) render(child, `${pad}  `);
         break;
       case "hole1":

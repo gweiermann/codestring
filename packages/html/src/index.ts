@@ -206,7 +206,18 @@ export const htmlAdapter = defineAdapter<HtmlParsed, HtmlNode>({
     return inAttribute ? base.replace(/"/gu, "&quot;") : base;
   },
 
-  placeholder(_index, { before, fallback }) {
+  placeholder(index, { before, fallback }) {
+    // A hole right after `<` is the tag name itself: it must touch the bracket,
+    // and a tag name has to start with a letter, so the usual `__sm_hole_n__`
+    // spelling will not do. Anywhere else inside a tag it is an attribute and
+    // needs a space.
+    if (before.endsWith("</")) {
+      // A closing tag has to repeat the opening name or the parser will not
+      // pair them, so it echoes whatever the opening tag's hole was called.
+      const opened = /<(sm-hole-\d+)(?![\s\S]*<\/\1>)/u.exec(before);
+      return opened ? opened[1]! : `sm-hole-${index}`;
+    }
+    if (before.endsWith("<")) return `sm-hole-${index}`;
     return padPlaceholder(fallback, before, { needsSpace: isInsideDelimiter(before, "<", ">") });
   },
 
