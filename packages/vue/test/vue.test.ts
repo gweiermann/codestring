@@ -84,3 +84,21 @@ runAdapterContractSuite(vueAdapter, {
     { before: "<div>", after: "</div>" },
   ],
 });
+
+describe("nested elements keep their own tags", () => {
+  it("does not take the next element's closing tag", () => {
+    const source = `<sw-block name="a"><sw-block name="b"><p>x</p></sw-block></sw-block>`;
+    const closings = vue
+      .parse(source)
+      .nodes()
+      .filter((node) => node.kind === "tag-close")
+      .map((node) => node.text());
+    expect(closings).toEqual(["</p>", "</sw-block>", "</sw-block>"]);
+  });
+
+  it("finds a nested match of the same shape", () => {
+    const source = `<sw-block name="a"><sw-block name="b">x</sw-block></sw-block>`;
+    const matches = vue.parse(source).matchAll(code`<sw-block ${any()}>${any()}</sw-block>`);
+    expect(matches.map((match) => match.text())).toEqual([source, `<sw-block name="b">x</sw-block>`]);
+  });
+});

@@ -104,10 +104,13 @@ function convert(current: TemplateChildNode, source: string): VueNode[] {
   ]);
 
   const children = element.children.flatMap((child) => convert(child, source));
+  // Searched by name and from inside this element, because the `</` of whatever
+  // follows it begins at this element's own end and would win otherwise.
+  const closeStart = source.lastIndexOf(`</${element.tag}`, end - 1);
   const closing =
-    element.isSelfClosing || openEnd === end
+    element.isSelfClosing || openEnd === end || closeStart < openEnd
       ? []
-      : [node("tag-close", Math.max(openEnd, source.lastIndexOf("</", end)), end)];
+      : [node("tag-close", closeStart, end)];
 
   const componentTag = element.tagType === ElementTypes.COMPONENT ? "component" : "element";
   return [
