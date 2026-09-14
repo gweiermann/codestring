@@ -52,6 +52,16 @@ export class NodeRef<TNode = unknown> {
     return this.document.text.slice(this.start, this.end);
   }
 
+  /** The first child of this kind — the part of a construct you mean by name. */
+  child(kind: string): NodeRef<TNode> | undefined {
+    return this.children.find((child) => child.kind === kind);
+  }
+
+  /** Every child of this kind, in source order. */
+  childrenOf(kind: string): NodeRef<TNode>[] {
+    return this.children.filter((child) => child.kind === kind);
+  }
+
   slice(): SourceSlice {
     return new SourceSlice(this.document, this.start, this.end);
   }

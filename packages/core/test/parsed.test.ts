@@ -414,3 +414,17 @@ describe("explain", () => {
     expect(toy.parse("(sum 1 2)").explain(code`(sum 1 2)`)).toContain("matched 1 time");
   });
 });
+
+describe("naming a part of a node", () => {
+  it("finds the first child of a kind", () => {
+    const document = toy.parse("(a b)");
+    const list = document.root.children[0]!;
+    expect(list.child("atom")!.text()).toBe("a");
+    expect(list.child("nothing")).toBeUndefined();
+  });
+
+  it("finds every child of a kind", () => {
+    const list = toy.parse("(a b c)").root.children[0]!;
+    expect(list.childrenOf("atom").map((node) => node.text())).toEqual(["a", "b", "c"]);
+  });
+});
