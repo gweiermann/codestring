@@ -157,7 +157,15 @@ function observedSeparation(anchor: NodeRef<unknown>, side: "before" | "after"):
         : [undefined, undefined];
 
   if (!left || !right) return null;
-  return left.document.text.slice(left.end, right.start);
+
+  // A list's own separator is whitespace, or something the adapter already
+  // called a separator. Anything else between two siblings is structure — the
+  // `(` before a call's first argument — and says nothing about the list.
+  const between = left.document.text.slice(left.end, right.start);
+  const holdsSeparator = siblings.some(
+    (node) => node.trivia === "separator" && node.start >= left.end && node.end <= right.start,
+  );
+  return between.trim() === "" || holdsSeparator ? between : null;
 }
 
 function separationFor(target: EditTargetInput, side: "before" | "after"): Separation | undefined {
@@ -165,8 +173,11 @@ function separationFor(target: EditTargetInput, side: "before" | "after"): Separ
   const anchor = side === "before" ? nodes?.[0] : nodes?.[nodes.length - 1];
   if (!anchor) return undefined;
   // Only a list separates its items; the parts of a fixed construct do not.
-  const observed = anchor.parent?.variadic ? observedSeparation(anchor, side) : null;
-  return { side, observed, anchor };
+  const parent = anchor.parent;
+  if (!parent?.variadic) return { side, observed: null, anchor };
+  // What the list already shows, or what the adapter says a list of this kind
+  // uses when it is too short to show anything.
+  return { side, observed: observedSeparation(anchor, side) || parent.listSeparator, anchor };
 }
 
 interface Separation {

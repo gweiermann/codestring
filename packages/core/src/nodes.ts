@@ -17,6 +17,8 @@ export class NodeRef<TNode = unknown> {
   readonly error: boolean;
   /** Does this kind hold a list, rather than a fixed set of parts? */
   readonly variadic: boolean;
+  /** What separates this list's items, when the adapter says. */
+  readonly listSeparator: string | null;
   readonly children: NodeRef<TNode>[] = [];
   parent: NodeRef<TNode> | null = null;
 
@@ -29,6 +31,7 @@ export class NodeRef<TNode = unknown> {
     trivia?: TriviaClass;
     error?: boolean;
     variadic?: boolean;
+    listSeparator?: string | null;
   }) {
     this.kind = init.kind;
     this.start = init.start;
@@ -38,6 +41,7 @@ export class NodeRef<TNode = unknown> {
     this.trivia = init.trivia ?? null;
     this.error = init.error ?? false;
     this.variadic = init.variadic ?? false;
+    this.listSeparator = init.listSeparator ?? null;
   }
 
   get isLeaf(): boolean {
@@ -110,6 +114,7 @@ export function normalize<TParsed, TNode>(input: {
       trivia: adapter.triviaClass ? adapter.triviaClass(node) ?? null : null,
       error: adapter.isErrorNode ? Boolean(adapter.isErrorNode(node)) : false,
       variadic: adapter.isVariadic ? Boolean(adapter.isVariadic(kind)) : false,
+      listSeparator: adapter.listSeparator ? adapter.listSeparator(kind) : null,
     });
     ref.parent = parentRef;
 

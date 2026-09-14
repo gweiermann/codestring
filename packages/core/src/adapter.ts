@@ -66,6 +66,12 @@ export interface LanguageAdapter<TParsed = unknown, TNode = unknown, TToken = un
 
   /** Does this kind hold an unbounded list of children? Decides whether a bare hole is a run. */
   isVariadic?(kind: string): boolean;
+  /**
+   * What separates the items of a list of this kind — `", "` for arguments,
+   * `" "` for attributes. Only consulted when the list is too short to show one
+   * of its own, so it is a fallback rather than a rule.
+   */
+  listSeparator?(kind: string): string | null;
   /** A node the parser adds around a fragment, which a pattern should see through. */
   isPatternWrapper?(kind: string): boolean;
 

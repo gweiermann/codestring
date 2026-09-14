@@ -197,6 +197,7 @@ export const htmlAdapter = defineAdapter<HtmlParsed, HtmlNode>({
   triviaClass: (node) => node.trivia,
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => kind === "fragment" || kind === "attributes" || kind.startsWith("element:"),
+  listSeparator: (kind) => (kind === "attributes" ? " " : null),
 
   /** A value written into markup must not be able to open a tag or close a quote. */
   escape(value, { kind }) {

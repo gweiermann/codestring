@@ -59,3 +59,24 @@ describe("an insert keeps the list it lands in well formed", () => {
     expect(match.transform([match.insertBefore`// note\n`])).toBe("// note\nlog(x);");
   });
 });
+
+describe("a list too short to show its separator", () => {
+  it("takes the one the adapter names", () => {
+    const match = html.parse(`<div class="a">x</div>`).match(code`<div ${any()}>${any()}</div>`)!;
+    const attributes = match.nodes[0]!.children[0]!.children[0]!;
+    const only = attributes.children.find((node) => node.kind === "attribute")!;
+    expect(match.transform([match.insertAfter(only)`v-if="x"`])).toBe(`<div class="a" v-if="x">x</div>`);
+  });
+
+  it("does the same for a single argument", () => {
+    const match = js.parse("foo(a);").match(code`foo(${value})`)!;
+    const only = match.get(value).nodes[0]!;
+    expect(match.transform([match.insertAfter(only)`b`])).toBe("foo(a, b);");
+  });
+
+  it("prefers what the list already shows over what the adapter says", () => {
+    const match = js.parse("foo(a,b);").match(code`foo(${value})`)!;
+    const last = match.get(value).nodes[1]!;
+    expect(match.transform([match.insertAfter(last)`c`])).toBe("foo(a,b,c);");
+  });
+});

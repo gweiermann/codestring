@@ -25,6 +25,17 @@ const VARIADIC = new Set([
 ]);
 
 // `parent` is a back-reference ESLint adds; following it would never terminate.
+const COMMA_LISTS = new Set([
+  "CallExpression",
+  "NewExpression",
+  "ArrayExpression",
+  "ArrayPattern",
+  "ObjectExpression",
+  "ObjectPattern",
+  "SequenceExpression",
+  "VariableDeclaration",
+]);
+
 const SKIPPED_KEYS = new Set([
   "type",
   "start",
@@ -263,6 +274,7 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
     return `"${text.slice(1, -1).replace(/\\(['"])/gu, "$1")}"`;
   },
   isPatternWrapper: (kind) => kind === "ExpressionStatement",
+  listSeparator: (kind) => (COMMA_LISTS.has(kind) ? ", " : null),
 
   placeholder(_index, { before, after, fallback }) {
     const prefix = IDENTIFIER_EDGE.test(before.slice(-1)) ? " " : "";
