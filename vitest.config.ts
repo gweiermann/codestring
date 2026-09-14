@@ -18,6 +18,7 @@ export default defineConfig({
       "@codestring/codemod": source("codemod"),
       "@codestring/css": source("css"),
       "@codestring/eslint": source("eslint"),
+      "@codestring/vue": source("vue"),
       "codestring": source("umbrella"),
     },
   },

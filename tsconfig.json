@@ -43,6 +43,9 @@
       ],
       "@codestring/eslint": [
         "packages/eslint/src/index.ts"
+      ],
+      "@codestring/vue": [
+        "packages/vue/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true

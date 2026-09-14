@@ -1,0 +1,15 @@
+{
+  "name": "@codestring/vue",
+  "version": "0.1.0",
+  "description": "Vue template adapter for codestring, backed by @vue/compiler-dom.",
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "require": "./dist/cjs/index.js", "default": "./dist/index.js" } },
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "README.md"],
+  "license": "MIT",
+  "scripts": { "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/mark-cjs.mjs", "clean": "rm -rf dist" },
+  "dependencies": { "@vue/compiler-dom": "^3.5.0" },
+  "devDependencies": { "@codestring/core": "workspace:*" },
+  "peerDependencies": { "@codestring/core": "workspace:*" }
+}
