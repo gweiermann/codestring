@@ -40,3 +40,30 @@ describe("a hole can stand in for a node's kind", () => {
     expect(result).toBe("<p>keep</p>");
   });
 });
+
+describe("a pattern that spells the token itself", () => {
+  it("is not mistaken for a hole", () => {
+    const pattern = code`<cshole0 class="x">${body}</cshole0>`;
+    expect(html.parse('<cshole0 class="x">a</cshole0>').includes(pattern)).toBe(true);
+    expect(html.parse('<div class="x">a</div>').includes(pattern)).toBe(false);
+  });
+
+  it("still lets the real holes work beside it", () => {
+    const match = html
+      .parse('<cshole0 class="x">kept</cshole0>')
+      .match(code`<cshole0 class="x">${body}</cshole0>`)!;
+    expect(match.get(body).text()).toBe("kept");
+  });
+
+  it("does the same for a literal that looks like a text hole", () => {
+    const pattern = code`<p>cshole0</p><div>${body}</div>`;
+    expect(html.parse("<p>cshole0</p><div>kept</div>").includes(pattern)).toBe(true);
+    expect(html.parse("<p>other</p><div>kept</div>").includes(pattern)).toBe(false);
+  });
+
+  it("picks a token the literals do not contain", () => {
+    const compiled = code`<p>cshole0</p><div>${body}</div>`.compile(html as never).compiled;
+    expect(compiled.placeholders[0]).not.toBe("cshole0");
+    expect(compiled.source).toContain("cshole0");
+  });
+});

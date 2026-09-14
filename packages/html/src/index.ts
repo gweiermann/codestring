@@ -5,7 +5,6 @@ import { defineAdapter, type ParseDiagnostic, type TriviaClass } from "@codestri
 type Parse5Node = DefaultTreeAdapterMap["node"];
 type Parse5Element = DefaultTreeAdapterMap["element"];
 
-const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
 const HOLE_KINDS = new Set(["text", "attribute", "attribute-name", "attribute-value"]);
 
 export interface HtmlNode {
@@ -206,26 +205,20 @@ export const htmlAdapter = defineAdapter<HtmlParsed, HtmlNode>({
     return inAttribute ? base.replace(/"/gu, "&quot;") : base;
   },
 
-  placeholder(index, { before, fallback }) {
-    // A hole right after `<` is the tag name itself: it must touch the bracket,
-    // and a tag name has to start with a letter, so the usual `__sm_hole_n__`
-    // spelling will not do. Anywhere else inside a tag it is an attribute and
-    // needs a space.
+  placeholder(_index, { before, fallback }) {
+    // A hole right after `<` is the tag name itself and must touch the bracket.
+    // Anywhere else inside a tag it is an attribute and needs a space.
     if (before.endsWith("</")) {
       // A closing tag has to repeat the opening name or the parser will not
       // pair them, so it echoes whatever the opening tag's hole was called.
-      const opened = /<(sm-hole-\d+)(?![\s\S]*<\/\1>)/u.exec(before);
-      return opened ? opened[1]! : `sm-hole-${index}`;
+      // Only a name the core generated: a literal tag closes itself by name.
+      const prefix = fallback.replace(/\d+$/u, "");
+      const opened = new RegExp(`<(${prefix}\\d+)(?![\\s\\S]*</\\1>)`, "u").exec(before);
+      return opened ? opened[1]! : fallback;
     }
-    if (before.endsWith("<")) return `sm-hole-${index}`;
+    if (before.endsWith("<")) return fallback;
     return padPlaceholder(fallback, before, { needsSpace: isInsideDelimiter(before, "<", ">") });
   },
 
-  detectPlaceholder(node, text) {
-    if (!HOLE_KINDS.has(node.kind)) return null;
-    // A whole attribute is a hole only when nothing else is written on it; with
-    // a value present the walk descends to the name or the value instead.
-    const match = PLACEHOLDER.exec(text.trim());
-    return match ? Number(match[1]) : null;
-  },
+  isHoleKind: (kind) => HOLE_KINDS.has(kind),
 });

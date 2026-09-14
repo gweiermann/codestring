@@ -93,7 +93,6 @@ export function parseToy(source: string): ToyParsed {
   return { root, diagnostics };
 }
 
-const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
 
 export const toyAdapter = defineAdapter<ToyParsed, ToyNode>({
   id: "toy",
@@ -106,9 +105,5 @@ export const toyAdapter = defineAdapter<ToyParsed, ToyNode>({
   triviaClass: (node) => node.trivia,
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => kind === "list",
-  detectPlaceholder(node, text) {
-    if (node.kind !== "atom") return null;
-    const match = PLACEHOLDER.exec(text);
-    return match ? Number(match[1]) : null;
-  },
+  isHoleKind: (kind) => kind === "atom",
 });

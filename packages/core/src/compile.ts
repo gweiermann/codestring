@@ -5,8 +5,6 @@ import { type NodeRef, normalize, walk } from "./nodes.js";
 import { type AnyCapture, type HoleValue, type ItemValue, isHoleValue } from "./captures.js";
 import type { PatternOptions } from "./options.js";
 
-const DEFAULT_PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
-
 export type TriviaPolicy = "ignore" | "exact" | "whitespace-flexible";
 
 export const TRIVIA_POLICIES: ReadonlySet<TriviaPolicy> = new Set<TriviaPolicy>([
@@ -171,11 +169,24 @@ function isPatternInternals(value: unknown): value is PatternInternals {
   return Boolean(value && typeof value === "object" && (value as PatternInternals).isStructuralPattern === true);
 }
 
+/**
+ * A token the pattern's own text does not already contain, so a literal that
+ * happens to look like a placeholder is never mistaken for one.
+ */
+function tokenPrefix(literals: readonly string[]): string {
+  const written = literals.join("");
+  for (let salt = 0; ; salt++) {
+    const prefix = salt === 0 ? "cshole" : `cs${salt}hole`;
+    if (!written.includes(prefix)) return prefix;
+  }
+}
+
 function buildPatternSource(literals: readonly string[], holes: readonly HoleValue[], adapter: AnyAdapter) {
   let source = literals[0]!;
   const placeholders: string[] = [];
+  const prefix = tokenPrefix(literals);
   for (let i = 0; i < holes.length; i++) {
-    const fallback = `__sm_hole_${i}__`;
+    const fallback = `${prefix}${i}`;
     const text = adapter.placeholder
       ? adapter.placeholder(i, { before: source, after: literals[i + 1]!, fallback })
       : fallback;
@@ -185,12 +196,17 @@ function buildPatternSource(literals: readonly string[], holes: readonly HoleVal
   return { source, placeholders };
 }
 
-function detectPlaceholder(adapter: AnyAdapter, node: NodeRef<unknown>): number | null {
-  if (adapter.detectPlaceholder) {
-    return adapter.detectPlaceholder(node.raw, node.text()) ?? null;
-  }
-  const match = DEFAULT_PLACEHOLDER.exec(node.text().trim());
-  return match ? Number(match[1]) : null;
+/** Which hole this node stands for, if any. The comparing is the core's job. */
+function detectPlaceholder(
+  adapter: AnyAdapter,
+  node: NodeRef<unknown>,
+  placeholders: readonly string[],
+): number | null {
+  if (adapter.isHoleKind && !adapter.isHoleKind(node.kind)) return null;
+  const text = adapter.holeText ? adapter.holeText(node.raw, node.text()) : node.text();
+  const trimmed = text.trim();
+  const index = placeholders.findIndex((placeholder) => placeholder.trim() === trimmed);
+  return index === -1 ? null : index;
 }
 
 function isVariadic(adapter: AnyAdapter, kind: string | null): boolean {
@@ -339,7 +355,7 @@ function toIR<TNode>(node: NodeRef<TNode>, parentKind: string | null, context: C
     };
   }
 
-  const index = detectPlaceholder(context.adapter, node as NodeRef<unknown>);
+  const index = detectPlaceholder(context.adapter, node as NodeRef<unknown>, context.placeholders);
 
   // A hole the adapter did not accept, sitting in a leaf that carries it — the
   // name in a closing tag, which repeats what the opening tag already said.
@@ -347,7 +363,7 @@ function toIR<TNode>(node: NodeRef<TNode>, parentKind: string | null, context: C
   if (index === null && node.children.length === 0) {
     const echoed = openKind(context.placeholders, node.text());
     const placeholder = echoed === null ? "" : context.placeholders[echoed]!.trim();
-    // Only when the leaf is the hole plus punctuation — `</sm-hole-0>`. A hole
+    // Only when the leaf is the hole plus punctuation — `</cshole0>`. A hole
     // with real text beside it was folded into that text and still has to fail.
     const onlyPunctuation = echoed !== null && !/\w/u.test(node.text().replace(placeholder, ""));
     if (echoed !== null && onlyPunctuation) {

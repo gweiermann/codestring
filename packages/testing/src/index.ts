@@ -121,15 +121,16 @@ export function runAdapterContractSuite(adapter: AnyAdapter, fixtures: AdapterFi
       "placeholder context #%i",
       (_index, context) => {
         it("round-trips a hole through parse and detection", () => {
-          const fallback = "__sm_hole_0__";
+          const fallback = "cshole0";
           const text = adapter.placeholder
             ? adapter.placeholder(0, { before: context.before, after: context.after, fallback })
             : fallback;
           const source = `${context.before}${text}${context.after}`;
           const parsed = language.parse(source);
           const detected = [...walk(parsed.root)].filter((node) => {
-            if (adapter.detectPlaceholder) return adapter.detectPlaceholder(node.raw, node.text()) === 0;
-            return node.text().trim() === fallback;
+            if (adapter.isHoleKind && !adapter.isHoleKind(node.kind)) return false;
+            const written = adapter.holeText ? adapter.holeText(node.raw, node.text()) : node.text();
+            return written.trim() === fallback || node.kind.includes(fallback);
           });
           expect(detected.length, `no placeholder node found in ${JSON.stringify(source)}`).toBeGreaterThan(0);
         });

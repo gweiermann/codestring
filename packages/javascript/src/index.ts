@@ -1,10 +1,8 @@
 import { type Comment, type Node as AcornNode, parse as acornParse } from "acorn";
 import { defineAdapter, type ParseDiagnostic, type TriviaClass } from "@codestring/core";
 
-const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
 // A module specifier or an i18n key has to be a literal, so a hole there is
 // written inside the quotes and stands for the whole literal.
-const QUOTED_PLACEHOLDER = /^(["'`])__sm_hole_(\d+)__\1$/u;
 const IDENTIFIER_EDGE = /[A-Za-z0-9_$]/u;
 
 const VARIADIC = new Set([
@@ -288,10 +286,6 @@ export const javascriptAdapter = defineAdapter<JavaScriptParsed, JavaScriptNode>
    * for an import clause without the pattern having to name which kind of
    * specifier it is.
    */
-  detectPlaceholder(_node, text) {
-    const bare = PLACEHOLDER.exec(text.trim().replace(/;$/u, "").trim());
-    if (bare) return Number(bare[1]);
-    const quoted = QUOTED_PLACEHOLDER.exec(text.trim());
-    return quoted ? Number(quoted[2]) : null;
-  },
+  /** A statement carries its semicolon and a string its quotes; neither is the hole. */
+  holeText: (_node, text) => text.trim().replace(/;$/u, "").trim().replace(/^(["'`])(.*)\1$/su, "$2"),
 });

@@ -69,7 +69,7 @@ describe("pattern compilation", () => {
   it("splices another pattern of the same language", () => {
     const inner = toy.pattern`(inner ${capture("x")})`;
     const outer = toy.pattern`(outer ${inner})`;
-    expect(outer.compiled.source).toBe("(outer (inner __sm_hole_0__))");
+    expect(outer.compiled.source).toBe("(outer (inner cshole0))");
   });
 
   it("refuses a pattern from another language", () => {

@@ -111,11 +111,15 @@ function holeContexts(strings: readonly string[], language: EscapingLanguage): r
   const cached = contexts.get(strings)?.get(language.id);
   if (cached) return cached;
 
+  const written = strings.join("");
+  let prefix = "cshole";
+  for (let salt = 1; written.includes(prefix); salt++) prefix = `cs${salt}hole`;
+
   let source = strings[0] ?? "";
   const offsets: number[] = [];
   for (let i = 1; i < strings.length; i++) {
     offsets.push(source.length);
-    source += `__sm_hole_${i - 1}__${strings[i] ?? ""}`;
+    source += `${prefix}${i - 1}${strings[i] ?? ""}`;
   }
 
   let kinds: readonly (string | null)[];

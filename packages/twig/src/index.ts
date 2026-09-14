@@ -2,7 +2,6 @@ import { isInsideDelimiter, padPlaceholder } from "@codestring/adapter-utils";
 import { defineAdapter } from "@codestring/core";
 import { type TwigNode, type TwigParsed, parseTwig } from "./parser.js";
 
-const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
 const HOLE_KINDS = new Set(["text", "name"]);
 const VARIADIC = new Set(["document", "args", "body", "output"]);
 
@@ -28,11 +27,7 @@ export const twigAdapter = defineAdapter<TwigParsed, TwigNode>({
     return padPlaceholder(fallback, before, { needsSpace: insideTag });
   },
 
-  detectPlaceholder(node, text) {
-    if (!HOLE_KINDS.has(node.kind)) return null;
-    const match = PLACEHOLDER.exec(text.trim());
-    return match ? Number(match[1]) : null;
-  },
+  isHoleKind: (kind) => HOLE_KINDS.has(kind),
 });
 
 export { parseTwig };

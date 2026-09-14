@@ -24,6 +24,11 @@ export interface ParseOptions {
 export interface PlaceholderContext {
   readonly before: string;
   readonly after: string;
+  /**
+   * The token to place. It is letters and digits starting with a letter, so it
+   * is a legal name in every language tried so far, and it is chosen so the
+   * pattern's own text does not already contain it.
+   */
   readonly fallback: string;
 }
 
@@ -76,7 +81,17 @@ export interface LanguageAdapter<TParsed = unknown, TNode = unknown, TToken = un
   isPatternWrapper?(kind: string): boolean;
 
   placeholder?(index: number, context: PlaceholderContext): string;
-  detectPlaceholder?(node: TNode, text: string): number | null;
+  /**
+   * Which kinds may stand for a hole. Everything else is literal syntax, so a
+   * node of another kind is never mistaken for one.
+   */
+  isHoleKind?(kind: string): boolean;
+  /**
+   * The text a hole is recognised by, when the node's own source is not it —
+   * an HTML attribute is recognised by its name, a JavaScript statement without
+   * its semicolon. The core does the comparing.
+   */
+  holeText?(node: TNode, text: string): string;
 
   tokens?(parsed: TParsed): readonly TToken[];
   tokenRange?(token: TToken): Range;

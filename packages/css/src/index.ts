@@ -1,7 +1,6 @@
 import { defineAdapter } from "@codestring/core";
 import { type CssNode, type CssParsed, parseCss } from "./parser.js";
 
-const PLACEHOLDER = /^__sm_hole_(\d+)__$/u;
 const HOLE_KINDS = new Set(["selector", "property", "value", "prelude", "text"]);
 const VARIADIC = new Set(["stylesheet", "block"]);
 
@@ -23,11 +22,7 @@ export const cssAdapter = defineAdapter<CssParsed, CssNode>({
   isErrorNode: (node) => node.error,
   isVariadic: (kind) => VARIADIC.has(kind),
 
-  detectPlaceholder(node, text) {
-    if (!HOLE_KINDS.has(node.kind)) return null;
-    const match = PLACEHOLDER.exec(text.trim());
-    return match ? Number(match[1]) : null;
-  },
+  isHoleKind: (kind) => HOLE_KINDS.has(kind),
 });
 
 export { parseCss };
