@@ -1,0 +1,37 @@
+{
+  "name": "@codestring/babel",
+  "version": "0.1.0",
+  "description": "TypeScript and JavaScript language adapter for codestring, backed by @babel/parser.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "README.md",
+    "dist",
+    "src"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@babel/parser": "^7.25.0",
+    "@babel/types": "^7.25.0",
+    "@codestring/adapter-utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "@codestring/core": "workspace:*"
+  },
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ../../scripts/mark-cjs.mjs",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@codestring/core": "workspace:*"
+  },
+  "main": "./dist/cjs/index.js"
+}

@@ -130,6 +130,22 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/babel:
+    dependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@codestring/adapter-utils':
+        specifier: workspace:*
+        version: link:../adapter-utils
+    devDependencies:
+      '@codestring/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/cli:
     dependencies:
       '@codestring/core':

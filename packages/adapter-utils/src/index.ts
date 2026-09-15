@@ -111,3 +111,82 @@ export function padPlaceholder(
   if (!options.needsSpace) return placeholder;
   return /\s$/u.test(before) ? placeholder : ` ${placeholder}`;
 }
+
+/** The normalized-node shape the helpers below build and rearrange. */
+export interface BuiltNode {
+  kind: string;
+  start: number;
+  end: number;
+  children: BuiltNode[];
+  trivia: TriviaClass;
+  error: boolean;
+}
+
+const SEPARATORS = new Set([",", ";"]);
+
+/**
+ * Give a list's punctuation nodes of its own.
+ *
+ * A JavaScript AST puts a statement's terminating `;` inside the statement and
+ * gives a `,` between list elements no node at all, so rewriting one element
+ * would eat its terminator and removing one would strand the comma. As
+ * separator nodes they are present in the tree, skipped when matching, and
+ * taken along when the element beside them is removed.
+ */
+export function separatorGaps<TNode extends BuiltNode>(
+  children: readonly TNode[],
+  source: string,
+  parentStart: number,
+  parentEnd: number,
+  make: (kind: string, start: number, end: number, trivia: TriviaClass) => TNode,
+): TNode[] {
+  if (children.length === 0) return [...children];
+
+  const result: TNode[] = [];
+  // A gap may hold more than the separator — `; }` closes the block as well —
+  // so only its first non-whitespace character is considered.
+  const addGap = (from: number, to: number) => {
+    let at = from;
+    while (at < to && WHITESPACE.test(source[at]!)) at++;
+    if (at >= to || !SEPARATORS.has(source[at]!)) return;
+    result.push(make("separator", at, at + 1, "separator"));
+  };
+
+  let cursor = parentStart;
+  for (const child of children) {
+    addGap(cursor, child.start);
+    result.push(child);
+    cursor = child.end;
+  }
+  addGap(cursor, parentEnd);
+  return result;
+}
+
+/**
+ * Put comments back into a tree that keeps them beside it, as deep as they
+ * belong, so the trivia policies mean something.
+ */
+export function insertComments<TNode extends BuiltNode>(
+  root: TNode,
+  comments: readonly { start: number; end: number }[],
+  make: (kind: string, start: number, end: number, trivia: TriviaClass) => TNode,
+): void {
+  for (const comment of comments) {
+    let target = root;
+    let moved = true;
+    while (moved) {
+      moved = false;
+      for (const child of target.children) {
+        if (child.start <= comment.start && comment.end <= child.end) {
+          target = child as TNode;
+          moved = true;
+          break;
+        }
+      }
+    }
+    const index = target.children.findIndex((child) => child.start >= comment.end);
+    const node = make("Comment", comment.start, comment.end, "comment");
+    if (index === -1) target.children.push(node);
+    else target.children.splice(index, 0, node);
+  }
+}
