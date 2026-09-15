@@ -173,12 +173,8 @@ export function fromBabel(file: BabelNode, source: string): BabelParsed {
 }
 
 /**
- * The Babel node a matched node came from.
- *
- * `NodeRef.raw` is the adapter's own node, so the parser's is one hop further
- * down. A codemod that matches with codestring and rewrites with Babel crosses
- * that hop on every result, and `node.raw.raw` says nothing about which of the
- * two it lands on.
+ * The Babel node a matched node came from. `NodeRef.raw` is the adapter's own
+ * node, so the parser's is one hop further down.
  */
 export function babelNode(node: NodeRef<BabelAdapterNode>): BabelNode | undefined {
   return node.raw.raw;

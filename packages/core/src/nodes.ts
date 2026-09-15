@@ -77,12 +77,8 @@ export class NodeRef<TNode = unknown> {
   }
 
   /**
-   * The first match inside this node, or null.
-   *
-   * Searching a node searches the tree it is already part of, so the answer is
-   * the one the whole file gives. Asking the same question of `node.text()`
-   * would re-parse that text on its own, where it can mean something else.
-   * The node itself is never a match — only what it contains, as with a document.
+   * The first match inside this node, or null. The node itself is never a
+   * match — only what it contains, as with a document.
    */
   match<Captures extends CaptureSet>(query: Query<Captures, TNode>): Match<Captures, TNode> | null {
     return this.#pattern(query).match(this);
