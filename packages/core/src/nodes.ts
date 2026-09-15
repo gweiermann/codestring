@@ -1,5 +1,10 @@
 import type { AnyAdapter, LanguageAdapter, TriviaClass } from "./adapter.js";
-import { AdapterContractError } from "./errors.js";
+import type { CaptureSet } from "./captures.js";
+import { isCodeFragment } from "./code.js";
+import { AdapterContractError, MatchError } from "./errors.js";
+import type { Match } from "./match.js";
+import type { ParsedDocument, Query } from "./parsed.js";
+import type { Pattern } from "./pattern.js";
 import { SourceDocument, SourceSlice } from "./source.js";
 
 /**
@@ -21,6 +26,8 @@ export class NodeRef<TNode = unknown> {
   readonly listSeparator: string | null;
   readonly children: NodeRef<TNode>[] = [];
   parent: NodeRef<TNode> | null = null;
+  /** Set on a tree's root by the parse that owns it; every node reaches it by climbing. */
+  #parsed: ParsedDocument<unknown, TNode> | null = null;
 
   constructor(init: {
     kind: string;
@@ -46,6 +53,57 @@ export class NodeRef<TNode = unknown> {
 
   get isLeaf(): boolean {
     return this.children.length === 0;
+  }
+
+  /** The parse this node came from, so a node can be asked the same things a document can. */
+  get parsed(): ParsedDocument<unknown, TNode> {
+    let node: NodeRef<TNode> = this;
+    while (node.parent) node = node.parent;
+    if (!node.#parsed) {
+      throw new MatchError("this node is not attached to a parse, so it cannot be searched");
+    }
+    return node.#parsed;
+  }
+
+  /** @internal — called once by the ParsedDocument that owns this tree. */
+  static attach<TNode>(root: NodeRef<TNode>, parsed: ParsedDocument<unknown, TNode>): void {
+    root.#parsed = parsed;
+  }
+
+  #pattern<Captures extends CaptureSet>(query: Query<Captures, TNode>): Pattern<Captures, TNode> {
+    return isCodeFragment(query)
+      ? query.compile<TNode>(this.parsed.language)
+      : (query as Pattern<Captures, TNode>);
+  }
+
+  /**
+   * The first match inside this node, or null.
+   *
+   * Searching a node searches the tree it is already part of, so the answer is
+   * the one the whole file gives. Asking the same question of `node.text()`
+   * would re-parse that text on its own, where it can mean something else.
+   * The node itself is never a match — only what it contains, as with a document.
+   */
+  match<Captures extends CaptureSet>(query: Query<Captures, TNode>): Match<Captures, TNode> | null {
+    return this.#pattern(query).match(this);
+  }
+
+  /** Every match inside this node, outermost first. */
+  matchAll<Captures extends CaptureSet>(query: Query<Captures, TNode>): Match<Captures, TNode>[] {
+    return this.#pattern(query).findAll(this);
+  }
+
+  includes(query: Query<any, TNode>): boolean {
+    return this.match(query) !== null;
+  }
+
+  count(query: Query<any, TNode>): number {
+    return this.matchAll(query).length;
+  }
+
+  /** This node and everything below it, depth-first in source order. */
+  nodes(): NodeRef<TNode>[] {
+    return [...walk(this)];
   }
 
   text(): string {

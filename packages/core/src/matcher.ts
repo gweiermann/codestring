@@ -291,7 +291,7 @@ function describeItem(item: PatternIR): string {
 export function search<TNode>(
   parsedDocument: ParsedDocument<unknown, TNode>,
   compiled: CompiledPattern,
-  options: { wantExplanation?: boolean } = {},
+  options: { wantExplanation?: boolean; within?: NodeRef<TNode> } = {},
 ): { results: SearchResult<TNode>[]; failure: MatchFailure<TNode> | null } {
   const results: SearchResult<TNode>[] = [];
   const seenRanges = new Set<string>();
@@ -304,7 +304,7 @@ export function search<TNode>(
   const firstItem = compiled.items[0]!;
   const requiredKind = firstItem.t === "node" ? firstItem.kind : null;
 
-  for (const node of walk(parsedDocument.root)) {
+  for (const node of walk(options.within ?? parsedDocument.root)) {
     const children = filterTrivia(node.children, compiled.trivia);
     if (children.length === 0) continue;
     ctx.emptyAnchor = children[0]!.start;

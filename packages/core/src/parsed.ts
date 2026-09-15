@@ -5,7 +5,7 @@ import { type CodeFragment, isCodeFragment } from "./code.js";
 import { type Edit, applyEdits, insertAfter, insertBefore, remove, replace } from "./edits.js";
 import { ParseError } from "./errors.js";
 import type { Match } from "./match.js";
-import { type NodeRef, walk } from "./nodes.js";
+import { NodeRef, walk } from "./nodes.js";
 import type { PatternOptions } from "./options.js";
 import type { Pattern, PatternLanguage } from "./pattern.js";
 import { SourceDocument, SourceSlice } from "./source.js";
@@ -68,6 +68,7 @@ export class ParsedDocument<TParsed = unknown, TNode = unknown> {
     this.origin = init.origin;
     this.raw = init.raw;
     this.language = init.language;
+    NodeRef.attach(this.root, this);
   }
 
   get errors(): readonly ParseDiagnostic[] {

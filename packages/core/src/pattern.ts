@@ -6,7 +6,9 @@ import { formatLocation } from "./errors.js";
 import type { CaptureSet } from "./captures.js";
 import type { PatternOptions } from "./options.js";
 import type { MatchInput, PatternHandle } from "./pattern-handle.js";
+import { NodeRef } from "./nodes.js";
 import type { AnyAdapter } from "./adapter.js";
+import { MatchError } from "./errors.js";
 
 /** The parts of a Language a Pattern needs, without a circular import. */
 export interface PatternLanguage<TNode> {
@@ -22,6 +24,17 @@ export interface PatternLanguage<TNode> {
 
 function intersects(range: { start: number; end: number }, ranges: readonly { start: number; end: number }[]) {
   return ranges.some((other) => range.start < other.end && other.start < range.end);
+}
+
+/** The parse a node belongs to, refusing one a pattern of another language cannot read. */
+function parseOf<TNode>(node: NodeRef<TNode>, language: string): ParsedDocument<unknown, TNode> {
+  const parsed = node.parsed;
+  if (parsed.language.id !== language) {
+    throw new MatchError(
+      `a ${language} pattern cannot search a ${parsed.language.id} node; parse the region with ${language} first`,
+    );
+  }
+  return parsed;
 }
 
 export class Pattern<Captures extends CaptureSet = CaptureSet, TNode = unknown>
@@ -64,8 +77,9 @@ export class Pattern<Captures extends CaptureSet = CaptureSet, TNode = unknown>
     results: SearchResult<TNode>[];
     failure: MatchFailure<TNode> | null;
   } {
-    const parsedDocument = this.language.parse(input, this.options);
-    const { results, failure } = search(parsedDocument, this.compiled, { wantExplanation });
+    const within = input instanceof NodeRef ? input : undefined;
+    const parsedDocument = within ? parseOf(within, this.language.id) : this.language.parse(input, this.options);
+    const { results, failure } = search(parsedDocument, this.compiled, { wantExplanation, within });
     const policy = this.options.onParseError ?? this.language.defaults.onParseError ?? "allow-outside-errors";
     let kept = results;
     if (policy === "allow-outside-errors" && parsedDocument.hasErrors()) {
