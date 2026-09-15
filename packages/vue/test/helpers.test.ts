@@ -8,6 +8,7 @@ import {
   nameOf,
   tagOf,
   vueAdapter,
+  vueNode,
 } from "../src/index.js";
 
 const vue = createLanguage(vueAdapter);
@@ -53,5 +54,22 @@ describe("each helper takes a node and nothing else", () => {
     const bare = vue.parse(`<br>`).nodes().find(isElement)!;
 
     expect([tagOf(bare), attributesOf(bare).length, contentOf(bare).length]).toEqual(["br", 0, 0]);
+  });
+});
+
+describe("vueNode", () => {
+  it("hands back the compiler node for a tag, a directive and an attribute", () => {
+    const nodes = vue.parse(`<sw-card class="a" v-for="x in xs" />`).nodes();
+    const kinds = ["component:sw-card", "attribute", "directive:for"];
+
+    expect(kinds.map((kind) => (vueNode(nodes.find((node) => node.kind === kind)!) as { type: number }).type)).toEqual([
+      1, 6, 7,
+    ]);
+  });
+
+  it("has nothing to hand back for a node the compiler never made", () => {
+    const startTag = vue.parse(`<b>x</b>`).nodes().find((node) => node.kind === "tag-open")!;
+
+    expect(vueNode(startTag)).toBeUndefined();
   });
 });

@@ -200,6 +200,19 @@ export function isComponent(node: NodeRef<VueNode>): boolean {
   return node.kind.startsWith("component:");
 }
 
+/**
+ * The compiler node a matched node came from: an ElementNode for a tag, a
+ * DirectiveNode for a directive, an AttributeNode for an attribute.
+ *
+ * `NodeRef.raw` is the adapter's own node, so the compiler's is one hop further
+ * down, and only the kinds above carry one. Everything the matcher needs is on
+ * the normalized tree; this is for what only `@vue/compiler-dom` knows, such as
+ * a `v-for` alias list.
+ */
+export function vueNode(node: NodeRef<VueNode>): unknown {
+  return node.raw.raw;
+}
+
 /** Everything written inside an element's start tag: its attributes and directives, in order. */
 export function attributesOf(node: NodeRef<VueNode>): NodeRef<VueNode>[] {
   return node.child("tag-open")?.child("attributes")?.children ?? [];
