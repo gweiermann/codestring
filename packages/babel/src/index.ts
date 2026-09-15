@@ -185,6 +185,24 @@ export function babelNode(node: NodeRef<BabelAdapterNode>): BabelNode | undefine
 }
 
 /**
+ * Every Babel node keyed to the matched node covering it.
+ *
+ * The inverse of `babelNode()`, and what a codemod holding a Babel AST needs to
+ * ask a pattern about one of its nodes: `index.get(fn)?.includes(code`this`)`.
+ * Built once per parse rather than searched per lookup.
+ */
+export function babelIndex(
+  root: NodeRef<BabelAdapterNode>,
+): Map<BabelNode, NodeRef<BabelAdapterNode>> {
+  const index = new Map<BabelNode, NodeRef<BabelAdapterNode>>();
+  for (const node of root.nodes()) {
+    const raw = node.raw.raw;
+    if (raw && !index.has(raw)) index.set(raw, node);
+  }
+  return index;
+}
+
+/**
  * Babel adapter. Same normalized shape as the acorn-backed JavaScript adapter,
  * over a parser that reads TypeScript, JSX and decorators — and over an AST
  * someone else may already have built.

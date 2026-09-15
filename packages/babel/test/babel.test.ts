@@ -1,7 +1,8 @@
 import { parse as babelParse } from "@babel/parser";
+import { traverseFast } from "@babel/types";
 import { describe, expect, it } from "vitest";
 import { any, capture, code, createLanguage, exactly } from "../../core/src/index.js";
-import { babelAdapter, babelLanguage, babelNode, fromBabel } from "../src/index.js";
+import { babelAdapter, babelIndex, babelLanguage, babelNode, fromBabel } from "../src/index.js";
 
 const ts = createLanguage(babelAdapter);
 
@@ -134,5 +135,27 @@ describe("one region, one child", () => {
     const node = ts.parse(source).nodes().find((candidate) => candidate.kind === kind)!;
 
     expect(node.children.map((child) => child.kind)).toEqual(["Identifier"]);
+  });
+});
+
+describe("babelIndex", () => {
+  it("asks a pattern about one node of a caller's own AST", () => {
+    const source = `export default {\n  methods: {\n    a() { this.x = 1; },\n    b() { return 1; },\n  },\n};`;
+    const file = babelParse(source, { sourceType: "module", plugins: ["typescript"] });
+    const document = babelLanguage(file, source).parse(source);
+    const index = babelIndex(document.root);
+
+    const methods: { key: { name: string } }[] = [];
+    traverseFast(file, (node) => {
+      if (node.type === "ObjectMethod") methods.push(node as never);
+    });
+
+    expect(methods.map((method) => [
+      method.key.name,
+      index.get(method as never)!.includes(code`this`),
+    ])).toEqual([
+      ["a", true],
+      ["b", false],
+    ]);
   });
 });
