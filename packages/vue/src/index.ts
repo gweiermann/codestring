@@ -8,7 +8,7 @@ import {
   type TemplateChildNode,
   parse,
 } from "@vue/compiler-dom";
-import { defineAdapter, type ParseDiagnostic, type TriviaClass } from "@codestring/core";
+import { defineAdapter, type NodeRef, type ParseDiagnostic, type TriviaClass } from "@codestring/core";
 
 export interface VueNode {
   kind: string;
@@ -181,5 +181,45 @@ export const vueAdapter = defineAdapter<VueParsed, VueNode>({
     return insideTag && !/\s$/u.test(before) ? ` ${fallback}` : fallback;
   },
 });
+
+/**
+ * Does this node render a tag? `element:` and `component:` are the adapter's
+ * way of saying which lookup Vue resolves the tag through, and both are tags.
+ */
+export function isElement(node: NodeRef<VueNode>): boolean {
+  return node.kind.startsWith("element:") || node.kind.startsWith("component:");
+}
+
+/** The written tag of an element, or null for anything that is not one. */
+export function tagOf(node: NodeRef<VueNode>): string | null {
+  return isElement(node) ? node.kind.slice(node.kind.indexOf(":") + 1) : null;
+}
+
+/** True when Vue resolves this tag through the component lookup rather than as plain markup. */
+export function isComponent(node: NodeRef<VueNode>): boolean {
+  return node.kind.startsWith("component:");
+}
+
+/** Everything written inside an element's start tag: its attributes and directives, in order. */
+export function attributesOf(node: NodeRef<VueNode>): NodeRef<VueNode>[] {
+  return node.child("tag-open")?.child("attributes")?.children ?? [];
+}
+
+/**
+ * The name of an attribute or directive: `class`, or `if` for every spelling of
+ * `v-if`. The compiler resolves `:`, `@` and `#` to the directive they stand
+ * for, and that resolved name is the one worth matching on.
+ */
+export function nameOf(node: NodeRef<VueNode>): string | null {
+  return node.raw.name ?? null;
+}
+
+/**
+ * The content of an element: everything between its tags, tags excluded.
+ * Whitespace and comments are trivia and stay in, as they do anywhere else.
+ */
+export function contentOf(node: NodeRef<VueNode>): NodeRef<VueNode>[] {
+  return node.children.filter((child) => child.kind !== "tag-open" && child.kind !== "tag-close");
+}
 
 export { parse as parseVueTemplate };
