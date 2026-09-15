@@ -1,7 +1,15 @@
 import { type ParserOptions, type ParserPlugin, parse as babelParse } from "@babel/parser";
 import { VISITOR_KEYS, type Node as BabelNode } from "@babel/types";
 import { type BuiltNode, insertComments, separatorGaps } from "@codestring/adapter-utils";
-import { defineAdapter, type ParseDiagnostic, type TriviaClass } from "@codestring/core";
+import {
+  type Language,
+  type LanguageAdapter,
+  type NodeRef,
+  type ParseDiagnostic,
+  type TriviaClass,
+  createLanguage,
+  defineAdapter,
+} from "@codestring/core";
 
 // A module specifier or an i18n key has to be a literal, so a hole there is
 // written inside the quotes and stands for the whole literal.
@@ -102,6 +110,10 @@ function isNode(value: unknown): value is BabelNode {
  * Children as Babel itself declares them. `VISITOR_KEYS` is the map its own
  * traversal uses, so there is nothing to infer from the object's keys and no
  * back-reference to walk into.
+ *
+ * Two keys can still name one region: `{ template }` is both the key and the
+ * value of its property, `import { a }` both the imported and the local name.
+ * Overlapping regions collapse to the widest, so shorthand yields one child.
  */
 function rawChildren(node: BabelNode): BabelNode[] {
   const found: BabelNode[] = [];
@@ -114,7 +126,16 @@ function rawChildren(node: BabelNode): BabelNode[] {
   }
   // A decorator is written before the thing it decorates but listed after it,
   // and a type parameter list likewise, so source order has to be restored.
-  return found.sort((a, b) => a.start! - b.start! || b.end! - a.end!);
+  found.sort((a, b) => a.start! - b.start! || b.end! - a.end!);
+
+  const children: BabelNode[] = [];
+  let previousEnd = -1;
+  for (const child of found) {
+    if (child.start! < previousEnd) continue;
+    children.push(child);
+    previousEnd = child.end!;
+  }
+  return children;
 }
 
 /** A trailing `;` belongs to the list this node sits in, not to the node. */
@@ -149,6 +170,18 @@ export function fromBabel(file: BabelNode, source: string): BabelParsed {
   });
   insertComments(root, comments, make);
   return { root, diagnostics: [] };
+}
+
+/**
+ * The Babel node a matched node came from.
+ *
+ * `NodeRef.raw` is the adapter's own node, so the parser's is one hop further
+ * down. A codemod that matches with codestring and rewrites with Babel crosses
+ * that hop on every result, and `node.raw.raw` says nothing about which of the
+ * two it lands on.
+ */
+export function babelNode(node: NodeRef<BabelAdapterNode>): BabelNode | undefined {
+  return node.raw.raw;
 }
 
 /**
@@ -228,3 +261,26 @@ export const babelAdapter = defineAdapter<BabelParsed, BabelAdapterNode>({
   /** A statement carries its semicolon and a string its quotes; neither is the hole. */
   holeText: (_node, text) => text.trim().replace(/;$/u, "").trim().replace(/^(["'`])(.*)\1$/su, "$2"),
 });
+
+/**
+ * A language backed by an AST that was parsed elsewhere.
+ *
+ * A codemod that needs `@babel/traverse` — for the scope chain, which matching
+ * does not model — keeps its own tree and matches over that same one, so a node
+ * found by a pattern and a node found by traversal are the same object. Only
+ * the whole file is answered from it: a nested parse asks for a region, which
+ * the given tree cannot cover.
+ */
+export function babelLanguage(
+  file: BabelNode,
+  source: string,
+  options: BabelParseOptions = {},
+): Language<LanguageAdapter<BabelParsed, BabelAdapterNode>> {
+  const adapter = defineAdapter<BabelParsed, BabelAdapterNode>({
+    ...babelAdapter,
+    id: "babel",
+    parse: (text, parseOptions) =>
+      text === source ? fromBabel(file, source) : babelAdapter.parse(text, parseOptions),
+  });
+  return createLanguage(adapter, { parseOptions: options as Record<string, unknown> });
+}
