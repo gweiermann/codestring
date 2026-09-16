@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Writing an adapter — codestring</title>
+<meta name="description" content="Teach codestring a new language in five functions, then prove it with the contract suite.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧵</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__brand" href="index.html">code<span>string</span></a>
+  <nav class="topbar__nav">
+    <a href="index.html">Overview</a>
+    <a href="tutorial.html">Tutorial</a>
+    <a href="api.html">API</a>
+    <a href="adapters.html" aria-current="page">Adapters</a>
+  </nav>
+  <span class="topbar__spacer"></span>
+  <button class="topbar__action" data-theme-toggle type="button">☾ Dark</button>
+  <a class="topbar__action" href="https://github.com/gweiermann/codestring">GitHub</a>
+</header>
+
+<div class="page">
+  <div class="layout">
+    <main>
+
+      <h1>Writing an adapter</h1>
+      <p class="lede">
+        An adapter teaches the core how to read one parser's output. It normalizes five things and implements no
+        matching at all — if an adapter ever needs its own matcher, the abstraction has failed.
+      </p>
+
+      <div class="callout callout--warn">
+        <p>
+          <strong>Experimental.</strong> codestring is an unmaintained experiment. The adapter contract below is
+          what the six first-party adapters were written against and what the contract suite checks, but nothing
+          here is frozen. <a href="https://github.com/gweiermann/codestring/issues">Taking it over is very welcome.</a>
+        </p>
+      </div>
+
+      <h2 id="shape">The five required functions</h2>
+
+      <pre><code>import { defineAdapter } from "@codestring/core";
+
+export const iniAdapter = defineAdapter&lt;IniParsed, IniNode&gt;({
+  id: "ini",
+
+  parse(source, options) { return parseIni(source); },  <span class="cmt">// your parser's own result</span>
+  root(parsed) { return parsed.root; },
+  kind(node) { return node.type; },                     <span class="cmt">// a stable string per node type</span>
+  range(node) { return node.span; },                    <span class="cmt">// { start, end } in UTF-16 code units</span>
+  children(node) { return node.kids; },                 <span class="cmt">// source order, contained in the parent</span>
+});</code></pre>
+
+      <p>
+        <code>defineAdapter</code> infers your parser's types from the implementation, so every callback is checked
+        against them and <code>NodeRef.raw</code> reaches users fully typed. If you would rather write the
+        annotation yourself, <code>LanguageAdapter&lt;TParsed, TNode, TToken&gt;</code> is exported too.
+      </p>
+
+      <h3 id="invariants">The invariants</h3>
+
+      <p>These are what the core relies on, and what it will reject you for breaking:</p>
+
+      <ul>
+        <li>the root's range covers the whole parsed text, <code>0</code> to <code>source.length</code></li>
+        <li>every range is integer offsets in <strong>UTF-16 code units</strong> — the same units
+          <code>String.prototype.slice</code> uses</li>
+        <li>a node's text is exactly <code>source.slice(node.start, node.end)</code></li>
+        <li>children are in source order and contained in their parent</li>
+        <li><code>kind</code> is a non-empty string, stable for a node type across parses</li>
+      </ul>
+
+      <p>
+        Break one and you get an <code>AdapterContractError</code> naming the node and the offset, rather than a
+        wrong match three layers up.
+      </p>
+
+      <h2 id="optional">What each optional function buys</h2>
+
+      <p>
+        Everything below is optional, and each option buys exactly one behaviour. Add them when you want that
+        behaviour, not as a matter of course.
+      </p>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Function</th><th>What it enables</th></tr></thead>
+        <tbody>
+          <tr><td><code>diagnostics(parsed)</code></td><td><code>hasErrors()</code>, and the parse-error policies. Report, never throw.</td></tr>
+          <tr><td><code>triviaClass(node)</code></td><td>Whitespace-flexible matching. Without it, a pattern must spell out every space.</td></tr>
+          <tr><td><code>isErrorNode(node)</code></td><td>Lets <code>allow-outside-errors</code> keep matches from the healthy parts of a broken file.</td></tr>
+          <tr><td><code>isVariadic(kind)</code></td><td>Marks unbounded child lists, which is what makes a bare hole in one bind a <em>run</em> rather than a single node.</td></tr>
+          <tr><td><code>listSeparator(kind)</code></td><td>What to insert between items when the list is too short to show its own separator.</td></tr>
+          <tr><td><code>isPatternWrapper(kind)</code></td><td>A node the parser adds around a fragment, which a pattern should see through — an <code>ExpressionStatement</code> around <code>foo()</code>.</td></tr>
+          <tr><td><code>compareText(node, text)</code></td><td>Compare two leaves by what they say rather than how they were spelled — <code>"a"</code> and <code>'a'</code> are the same string.</td></tr>
+          <tr><td><code>escape(value, ctx)</code></td><td>Keep an interpolated plain value from breaking out of a literal. Source slices never go through it.</td></tr>
+          <tr><td><code>placeholder(i, ctx)</code></td><td>Make a hole parseable in its context — see below.</td></tr>
+          <tr><td><code>isHoleKind(kind)</code> / <code>holeText(node, text)</code></td><td>Which nodes may stand for a hole, and the text they are recognised by.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2 id="placeholders">Placeholders: the one genuinely tricky part</h2>
+
+      <p>
+        A pattern with a hole has to be parsed before it can be matched. The core replaces each hole with a
+        token — letters and digits, starting with a letter, chosen so the pattern's own text does not already
+        contain it — and then finds the node whose text is that token.
+      </p>
+
+      <pre><code>code`foo(${arg})`   →   parse("foo(cshole0)")   →   the Identifier at 4..11 is the hole</code></pre>
+
+      <p>
+        That works unmodified for most positions. It stops working where the grammar needs more than a bare name,
+        and that is what <code>placeholder</code> is for: given what comes before and after, return the text to
+        write there.
+      </p>
+
+      <pre><code><span class="cmt">// JavaScript: keep the token from fusing with an adjacent identifier</span>
+placeholder(_index, { before, after, fallback }) {
+  const prefix = /[A-Za-z0-9_$]/u.test(before.slice(-1)) ? " " : "";
+  const suffix = /[A-Za-z0-9_$]/u.test(after.slice(0, 1)) ? " " : "";
+  return `${prefix}${fallback}${suffix}`;
+}</code></pre>
+
+      <pre><code><span class="cmt">// Vue: a closing tag has to repeat the opening name, or the compiler rejects it</span>
+placeholder(_index, { before, fallback }) {
+  if (before.endsWith("&lt;/")) {
+    const prefix = fallback.replace(/\d+$/u, "");
+    const opened = new RegExp(`&lt;(${prefix}\\d+)(?![\\s\\S]*&lt;/\\1&gt;)`, "u").exec(before);
+    return opened ? opened[1]! : fallback;
+  }
+  const insideTag = before.lastIndexOf("&lt;") &gt; before.lastIndexOf("&gt;");
+  return insideTag &amp;&amp; !/\s$/u.test(before) ? ` ${fallback}` : fallback;
+}</code></pre>
+
+      <p>
+        <code>@codestring/adapter-utils</code> ships the two helpers this keeps needing:
+        <code>isInsideDelimiter(before, open, close)</code> and
+        <code>padPlaceholder(fallback, before, { needsSpace })</code>.
+      </p>
+
+      <div class="callout">
+        <p>
+          <strong>Some positions cannot hold a hole at all.</strong> A tag name is one: <code>&lt;${x}&gt;</code>
+          is an <code>invalid-first-character-of-tag-name</code> error in every HTML parser, whatever token you
+          choose. That is a real limit of the approach, not something an adapter can paper over — the honest
+          answer is to expose the tag as a <em>kind</em> (<code>element:div</code>) so a caller can ask about it
+          without writing it in a pattern.
+        </p>
+      </div>
+
+      <h2 id="trivia">Trivia, separators and lists</h2>
+
+      <p>
+        Three classes exist, and each earns its place. <code>whitespace</code> and <code>comment</code> are what
+        matching steps over. <code>separator</code> is punctuation that holds a list together — the <code>,</code>
+        between arguments, the <code>;</code> between CSS declarations.
+      </p>
+
+      <p>
+        Giving separators nodes of their own is what makes <code>remove()</code> correct. Without it, removing one
+        argument of <code>f(a, b)</code> leaves <code>f(, b)</code>; with it, the separator beside the removed run
+        goes along.
+      </p>
+
+      <pre><code><span class="cmt">// the acorn and Babel adapters both do this, via a shared helper</span>
+import { separatorGaps } from "@codestring/adapter-utils";
+
+const children = separatorGaps(converted, source, start, end, make);</code></pre>
+
+      <p>
+        <code>isVariadic</code> and <code>listSeparator</code> complete the picture.
+        <code>isVariadic("CallExpression")</code> says the argument list is unbounded, so a bare hole there binds a
+        run. <code>listSeparator("CallExpression") === ", "</code> is the fallback used when inserting into a list
+        too short to show its own separator — a one-argument call has no comma to copy.
+      </p>
+
+      <h2 id="reusing">Reusing a tree someone else built</h2>
+
+      <p>
+        A parse is not always yours to make. ESLint already built an AST; a codemod may need
+        <code>@babel/traverse</code> for the scope chain and cannot afford a second tree that drifts from the
+        first. The pattern for both is the same — wrap the adapter so <code>parse</code> answers from the existing
+        tree when asked for the same text:
+      </p>
+
+      <pre><code>export function babelLanguage(file, source, options = {}) {
+  const adapter = defineAdapter({
+    ...babelAdapter,
+    id: "babel",
+    parse: (text, parseOptions) =&gt;
+      text === source ? fromBabel(file, source) : babelAdapter.parse(text, parseOptions),
+  });
+  return createLanguage(adapter, { parseOptions: options });
+}</code></pre>
+
+      <p>
+        The fallback matters: a nested parse asks for a <em>region</em>, which the given tree cannot cover. With
+        that in place, a node a pattern finds is the very node the caller's own traversal reaches — same object,
+        not a copy at the same offsets.
+      </p>
+
+      <h2 id="helpers">Shipping standalone helpers</h2>
+
+      <p>
+        Keep the adapter dumb. But sometimes the normalized tree genuinely cannot express something every consumer
+        needs, and then the honest answer is a plain function beside the adapter — never a method on it, and never
+        special handling inside the core.
+      </p>
+
+      <pre><code><span class="cmt">// @codestring/vue — each takes a node and nothing else</span>
+export function tagOf(node: NodeRef&lt;VueNode&gt;): string | null {
+  return isElement(node) ? node.kind.slice(node.kind.indexOf(":") + 1) : null;
+}
+
+export function attributesOf(node: NodeRef&lt;VueNode&gt;): NodeRef&lt;VueNode&gt;[] {
+  return node.child("tag-open")?.child("attributes")?.children ?? [];
+}</code></pre>
+
+      <p>Two rules keep these from becoming a second API:</p>
+
+      <ul>
+        <li><strong>Standalone.</strong> A function of a node, importable on its own, working on a node from any
+          construction of the language and on one from a nested parse.</li>
+        <li><strong>Earned.</strong> Either it cannot be written without reaching past the normalized tree —
+          <code>nameOf</code> needs the compiler's resolved directive name — or every consumer was about to write
+          the same three hops anyway.</li>
+      </ul>
+
+      <h2 id="contract">Prove it with the contract suite</h2>
+
+      <pre><code>import { runAdapterContractSuite } from "@codestring/testing";
+import { iniAdapter } from "../src/index.js";
+
+runAdapterContractSuite(iniAdapter, {
+  valid: ["[section]\nkey = value\n", "; comment\n"],
+  malformed: ["[unclosed\n", "= no key\n"],
+  unicode: ["key = 🎉\n"],
+  placeholderContexts: [{ before: "key = ", after: "\n" }],
+});</code></pre>
+
+      <p>
+        Around ninety cases per adapter, checking ranges, ordering, containment, UTF-16 offsets, trivia classes,
+        malformed input and placeholder round-tripping. Every first-party adapter runs it, and it is the fastest
+        way to find out that your parser reports offsets in code points rather than code units.
+      </p>
+
+      <h2 id="checklist">A working order</h2>
+
+      <ol class="steps">
+        <li>
+          <h3>The five functions, nothing else</h3>
+          <p>Get <code>language.parse(source).nodes()</code> to print a tree that looks right. Run the contract
+          suite with <code>valid</code> fixtures only.</p>
+        </li>
+        <li>
+          <h3>Trivia</h3>
+          <p>Classify whitespace and comments. Whitespace-flexible matching starts working, and patterns stop
+          needing to spell out every space.</p>
+        </li>
+        <li>
+          <h3>Placeholders</h3>
+          <p>Add <code>placeholderContexts</code> fixtures for each position a hole should work in — inside a
+          call, inside a tag, inside a string. Fix <code>placeholder</code> until they round-trip.</p>
+        </li>
+        <li>
+          <h3>Lists</h3>
+          <p><code>isVariadic</code> so bare holes bind runs, separator nodes so <code>remove()</code> is correct,
+          <code>listSeparator</code> so inserts land with the right punctuation.</p>
+        </li>
+        <li>
+          <h3>Spelling</h3>
+          <p><code>compareText</code> if two spellings mean the same thing, <code>escape</code> if an interpolated
+          value could break out of a literal.</p>
+        </li>
+        <li>
+          <h3>Malformed input</h3>
+          <p><code>diagnostics</code> and <code>isErrorNode</code>. Add <code>malformed</code> fixtures — the suite
+          insists you report rather than throw.</p>
+        </li>
+      </ol>
+
+      <h2 id="reference">Adapters to read</h2>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Adapter</th><th>Worth reading for</th></tr></thead>
+        <tbody>
+          <tr><td><code>packages/css</code></td><td>the smallest complete one — start here</td></tr>
+          <tr><td><code>packages/twig</code></td><td>a hand-written parser, and paired tags as <code>tag-open</code> / <code>body</code> / <code>tag-close</code></td></tr>
+          <tr><td><code>packages/javascript</code></td><td>separator nodes, comments spliced back in as trivia, <code>fromEstree</code></td></tr>
+          <tr><td><code>packages/babel</code></td><td>children from the parser's own visitor map, and reusing a caller's AST</td></tr>
+          <tr><td><code>packages/vue</code></td><td>kinds that carry a verdict (<code>component:</code> vs <code>element:</code>), and standalone helpers</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        Once it passes the suite, <code>cs find --adapter ./my-adapter.js</code> works, and so do codemods,
+        <code>inside()</code> composition and ESLint rules — none of which the adapter knows anything about.
+      </p>
+
+      <div class="next-prev">
+        <a href="api.html"><span>Previous</span>← API reference</a>
+        <a href="https://github.com/gweiermann/codestring"><span>Next</span>Read the source →</a>
+      </div>
+
+    </main>
+
+    <aside class="toc" data-toc><h2>On this page</h2></aside>
+  </div>
+
+  <footer>
+    <p>
+      codestring — an experiment by <a href="https://github.com/gweiermann">gweiermann</a>, MIT licensed.
+      Not actively maintained; <a href="https://github.com/gweiermann/codestring/issues">happy to hand it over</a>.
+    </p>
+  </footer>
+</div>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

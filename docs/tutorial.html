@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tutorial — codestring</title>
+<meta name="description" content="From a first structural match to a multi-language codemod and an ESLint rule, one step at a time.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧵</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__brand" href="index.html">code<span>string</span></a>
+  <nav class="topbar__nav">
+    <a href="index.html">Overview</a>
+    <a href="tutorial.html" aria-current="page">Tutorial</a>
+    <a href="api.html">API</a>
+    <a href="adapters.html">Adapters</a>
+  </nav>
+  <span class="topbar__spacer"></span>
+  <button class="topbar__action" data-theme-toggle type="button">☾ Dark</button>
+  <a class="topbar__action" href="https://github.com/gweiermann/codestring">GitHub</a>
+</header>
+
+<div class="page">
+  <div class="layout">
+    <main>
+
+      <h1>Tutorial</h1>
+      <p class="lede">
+        From a first match to a codemod that rewrites markup, script and style in one pass — and then an ESLint
+        rule written the same way. Every snippet below runs as written.
+      </p>
+
+      <div class="callout callout--warn">
+        <p>
+          <strong>Experimental.</strong> codestring is an unmaintained experiment. Everything here works and is
+          covered by tests, but there is no support and the API may move.
+          <a href="https://github.com/gweiermann/codestring/issues">Taking it over is very welcome.</a>
+        </p>
+      </div>
+
+      <h2 id="setup">Setup</h2>
+
+      <pre><code>pnpm add @codestring/core @codestring/javascript</code></pre>
+
+      <p>
+        Two imports and you have a language. <code>createLanguage</code> binds an adapter — the thirty-odd lines
+        that tell the core how to read a parser's nodes — to the parse entry point and the pattern tag.
+      </p>
+
+      <pre><code>import { any, capture, code, createLanguage } from "@codestring/core";
+import { javascriptAdapter } from "@codestring/javascript";
+
+const js = createLanguage(javascriptAdapter);</code></pre>
+
+      <h2 id="documents">1 &middot; The document is a String that reads syntax</h2>
+
+      <p><code>language.parse()</code> gives you the object you actually work with:</p>
+
+      <pre><code>const file = js.parse(`
+function load() {
+  console.log("loading", id);
+  return fetch(url);
+}
+`);
+
+file.includes(code`console.log(${any()})`);  <span class="cmt">// true</span>
+file.count(code`return ${any()};`);          <span class="cmt">// 1</span>
+file.indexOf(code`fetch(${any()})`);         <span class="cmt">// a source offset, or -1</span></code></pre>
+
+      <p>
+        <code>any()</code> is a hole that binds anything and captures nothing. These are the questions a string
+        answers — except <code>includes</code> is false for a <code>"console.log("</code> written inside a string
+        literal, and true for one spread across three lines.
+      </p>
+
+      <h3 id="captures">Captures</h3>
+
+      <p>
+        A <code>capture</code> is a named handle you declare once and reuse. Interpolated into a pattern it is a
+        hole; asked of a match it hands back what that hole bound:
+      </p>
+
+      <pre><code>const arg = capture("arg");
+
+const match = js.parse("foo(bar(1, 2))").match(code`foo(${arg})`)!;
+
+match.get(arg).text();   <span class="cmt">// "bar(1, 2)"</span>
+match.get(arg).start;    <span class="cmt">// 4  — an offset in the original file</span>
+match.get(arg).nodes[0].kind;  <span class="cmt">// "CallExpression"</span></code></pre>
+
+      <p>
+        Handles hold no state, so the same handle can be used by several patterns and matched concurrently — the
+        results live on the <code>Match</code>.
+      </p>
+
+      <h3 id="nodes">A node answers the same questions</h3>
+
+      <p>
+        The <code>String</code>-shaped surface is on every node too, so you can scope a question to one subtree:
+      </p>
+
+      <pre><code>const fn = file.nodes().find((node) => node.kind === "FunctionDeclaration")!;
+
+fn.includes(code`fetch(${any()})`);   <span class="cmt">// is there a fetch in *this* function?</span>
+fn.matchAll(code`await ${any()}`);
+fn.count(code`return ${any()};`);</code></pre>
+
+      <div class="callout">
+        <p>
+          <strong>Why not just <code>node.text()</code>?</strong> Because handing that text to a pattern re-parses
+          it on its own, where it can mean something else. <code>{ methods: {} }</code> is an object literal inside
+          a file and a <em>block statement</em> standing alone — the search would run over a tree that was never
+          there and answer no. Searching a node searches the tree it already belongs to, and parses nothing.
+        </p>
+      </div>
+
+      <h2 id="rewriting">2 &middot; Rewriting</h2>
+
+      <p>
+        Every rewrite answers with a <strong>new document</strong>, so they chain and never mutate the one you
+        had:
+      </p>
+
+      <pre><code>js.parse(source)
+  .replaceAll(code`console.log(${arg})`, code`logger.debug(${arg})`)
+  .removeAll(code`debugger;`)
+  .text();</code></pre>
+
+      <pre><code>  function load() {
+<span class="del">-   console.log("loading", id);</span>
+<span class="add">+   logger.debug("loading", id);</span>
+    return fetch(url);
+  }</code></pre>
+
+      <p>
+        In the second argument the same <code>code</code> fragment means the opposite thing: its holes are no
+        longer slots but the source the match captured. <code>"loading", id</code> comes through with its own
+        quotes and its own spacing, because it is inserted as source rather than printed from an AST.
+      </p>
+
+      <h3 id="conditional">Deciding per match</h3>
+
+      <p>The replacement can be a function. Returning nothing leaves that match alone:</p>
+
+      <pre><code>file.replaceAll(code`console.log(${arg})`, (match) =>
+  match.get(arg).isEmpty() ? null : match.replace`logger.debug(${arg})`);</code></pre>
+
+      <p>
+        Inside a match the edit constructors are tagged templates that already know what was captured, so there
+        is no second <code>.get()</code> and no separate source tag:
+      </p>
+
+      <pre><code>match.replace`logger.debug(${arg})`                  <span class="cmt">// the whole match</span>
+match.replace(body)`&lt;sw-block&gt;${body}&lt;/sw-block&gt;`    <span class="cmt">// one capture of it</span>
+match.insertBefore`// generated\n`
+match.remove()                                       <span class="cmt">// or match.remove(handle)</span></code></pre>
+
+      <p>
+        They return plain edit objects, so a conditional rewrite is an <code>if</code> and a <code>push</code>:
+      </p>
+
+      <pre><code>const edits = [wrapWithBlock(body, name)];
+if (legacyAttribute) edits.push(remove(legacyAttribute));
+return match.transform(edits);</code></pre>
+
+      <h2 id="twig">3 &middot; A real rewrite, in another language</h2>
+
+      <p>
+        Nothing so far was JavaScript-specific. Swap the adapter and the same vocabulary reads Twig:
+      </p>
+
+      <pre><code>import { twigAdapter } from "@codestring/twig";
+
+const twig = createLanguage(twigAdapter);
+const name = capture("name");
+const body = capture("body");
+
+twig.parse(source).replaceAll(
+  code`{% block ${name} %}${body}{% endblock %}`,
+  code`&lt;sw-block name="${name}"&gt;${body}&lt;/sw-block&gt;`,
+).text();</code></pre>
+
+      <div class="compare">
+        <div>
+          <h4>In</h4>
+          <pre><code>{% block header %}&lt;h1&gt;Title&lt;/h1&gt;{% endblock %}
+{% block main %}&lt;p&gt;Body&lt;/p&gt;{% endblock %}</code></pre>
+        </div>
+        <div>
+          <h4>Out</h4>
+          <pre><code>&lt;sw-block name="header"&gt;&lt;h1&gt;Title&lt;/h1&gt;&lt;/sw-block&gt;
+&lt;sw-block name="main"&gt;&lt;p&gt;Body&lt;/p&gt;&lt;/sw-block&gt;</code></pre>
+        </div>
+      </div>
+
+      <p>
+        The nesting is handled for you: a <code>{% block %}</code> around another <code>{% block %}</code>
+        produces two matches whose edits do not collide, and both are applied in one pass.
+      </p>
+
+      <h2 id="codemods">4 &middot; Codemods: rules, not scripts</h2>
+
+      <p>
+        A rule is a language, the files it applies to, and one function from parsed source to rewritten source.
+        There is no <code>from</code>/<code>to</code>/<code>where</code> vocabulary to learn — the function
+        decides everything, and returns nothing to leave the file alone.
+      </p>
+
+      <pre><code>import { createTransformer } from "@codestring/codemod";
+
+export const renameLogger = createTransformer({
+  name: "console.log → logger.debug",
+  language: js,
+  fileGlob: "**/*.js",
+  transform: ({ file, source }) =>
+    source.replaceAll(code`console.log(${arg})`, code`logger.debug(${arg})`),
+});
+
+renameLogger.transformString("console.log(  'a', b  );");  <span class="cmt">// "logger.debug('a', b);"</span>
+await renameLogger.transformFiles(["src/"], { write: true });</code></pre>
+
+      <p>Everything an option bag would do, the function does:</p>
+
+      <pre><code><span class="cmt">// skip a whole file</span>
+transform: ({ source }) =&gt; (source.includes(code`@generated`) ? null : rewrite(source)),
+
+<span class="cmt">// gate by path</span>
+transform: ({ file, source }) =&gt; (file?.startsWith("src/") ? rewrite(source) : null),
+
+<span class="cmt">// as many rewrites as you like, each reading the last</span>
+transform: ({ source }) =&gt; source.replaceAll(a, b).removeAll(c),</code></pre>
+
+      <h3 id="verify">verify — refuse your own output</h3>
+
+      <p>
+        The one check a transform cannot express cheaply: re-read the finished file and reject a rewrite that
+        broke it. It runs once per changed file and is <strong>on by default</strong> when writing to disk.
+      </p>
+
+      <pre><code>verify: "parses",
+verify: ({ before, after, path }) =&gt; after.includes("logger") || "logger is not imported here",
+verify: false,   <span class="cmt">// opt out</span></code></pre>
+
+      <p>
+        A refusal throws <code>TransformVerificationError</code> carrying <code>path</code> and
+        <code>reason</code>, so a runner reports which file was refused and why instead of writing something
+        broken.
+      </p>
+
+      <h3 id="several-rules">Several rules, one sweep</h3>
+
+      <pre><code>import { createCodemod } from "@codestring/codemod";
+
+const migrate = createCodemod({
+  name: "v2 migration",
+  transformers: [renameLogger, renameMarkup, migrateVueTemplates],
+});
+
+const results = await migrate.transformFiles(["src/"], { write: true });</code></pre>
+
+      <p>
+        A codemod <strong>carries no language of its own</strong>. Each transformer brings one, so a single sweep
+        reads <code>.js</code> with the JavaScript adapter, <code>.html</code> with parse5 and <code>.vue</code>
+        with <code>@vue/compiler-dom</code>, and every file is read by whatever knows how to read it.
+        Transformers run in order, each reading what the one before produced.
+      </p>
+
+      <p>
+        Each result reports <code>{ path, changed, before, after, written, applied }</code>, where
+        <code>applied</code> names the transformers whose glob matched <em>and</em> which actually changed
+        something — so a dry run (<code>write: false</code>) tells you exactly what a real run would touch.
+      </p>
+
+      <h2 id="nested">5 &middot; Languages inside languages</h2>
+
+      <p>
+        A <code>.vue</code> file is HTML with JavaScript in one element and CSS in another.
+        <code>inside()</code> re-reads a captured region with another language, rewrites it there and splices the
+        result back — in one pass, so several embedded regions can be rewritten without their offsets drifting:
+      </p>
+
+      <pre><code>createTransformer({
+  name: "vue: markup, script and style",
+  language: html,
+  fileGlob: "**/*.vue",
+  transform: ({ source }) =&gt;
+    source
+      .replaceAll(code`&lt;b&gt;${x}&lt;/b&gt;`, code`&lt;strong&gt;${x}&lt;/strong&gt;`)
+      .inside((block) =&gt; code`&lt;script&gt;${block}&lt;/script&gt;`, js, (script) =&gt;
+        script.replaceAll(code`console.log(${arg})`, code`logger.debug(${arg})`))
+      .inside((block) =&gt; code`&lt;style&gt;${block}&lt;/style&gt;`, css, (style) =&gt;
+        style.replaceAll(code`color: red`, code`color: var(--danger)`)),
+});</code></pre>
+
+      <p>
+        The first argument is handed the capture that stands for the region, so the pattern and the handle can
+        never disagree about which hole holds it. Nesting depth is unbounded, and a nested match's edits still
+        target the <strong>root</strong> document — the offsets never leave the original file.
+      </p>
+
+      <pre><code>const body = twig.parse(file).match(block)!.get(blockBody);  <span class="cmt">// offsets 19..48 in the Twig file</span>
+const inner = html.parse(body);                             <span class="cmt">// parsed as HTML, offsets unchanged</span>
+
+inner.text();            <span class="cmt">// just the body</span>
+inner.document.text;     <span class="cmt">// the whole Twig file</span></code></pre>
+
+      <h2 id="eslint">6 &middot; ESLint rules as patterns</h2>
+
+      <p>
+        An ESLint rule is usually a visitor, some <code>node.parent</code> walking and fixer arithmetic. Most of
+        them are really <em>“this shape is wrong, that shape is right”</em>:
+      </p>
+
+      <pre><code>import { capture, code } from "@codestring/core";
+import { createRule } from "@codestring/eslint";
+
+const args = capture("args");
+
+export const noConsoleLog = createRule({
+  meta: { type: "suggestion", fixable: "code", messages: { useLogger: "Use logger.debug instead." } },
+  find: code`console.log(${args})`,
+  messageId: "useLogger",
+  fix: (match) =&gt; match.replace`logger.debug(${args})`,
+});</code></pre>
+
+      <p>
+        It runs on the AST <strong>ESLint already built</strong>, so nothing is parsed twice, and because the tree
+        is read structurally rather than by node type, whatever parser ESLint was configured with comes along —
+        <code>@typescript-eslint/parser</code> included.
+      </p>
+
+      <h3 id="eslint-options">Narrowing, pointing, suggesting</h3>
+
+      <pre><code>createRule({
+  find: code`t(${key})`,
+  where: (match) =&gt; match.get(key).text().startsWith("'legacy."),  <span class="cmt">// narrow past the pattern</span>
+  report: (match) =&gt; match.get(key),                               <span class="cmt">// squiggle just the key</span>
+  message: "Legacy translation key.",
+  suggest: "Drop the legacy prefix",                               <span class="cmt">// offer, do not apply</span>
+  fix: (match) =&gt; match.replace(key)`'${stripped(match)}'`,
+});</code></pre>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Option</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>find</code></td><td>The pattern. The only required option.</td></tr>
+          <tr><td><code>where</code></td><td>Narrow further than a pattern can say — by what a capture bound, by its position, by anything.</td></tr>
+          <tr><td><code>message</code> / <code>messageId</code> / <code>data</code></td><td>The report text, or a <code>meta.messages</code> key plus its placeholders.</td></tr>
+          <tr><td><code>report</code></td><td>Point at one capture instead of the whole match.</td></tr>
+          <tr><td><code>fix</code></td><td>Return an edit, a list of edits, or replacement text. Returning nothing reports without offering a fix.</td></tr>
+          <tr><td><code>suggest</code></td><td>Offer the fix as a suggestion rather than applying it automatically.</td></tr>
+          <tr><td><code>language</code></td><td>Read the file as something else — a Vue or Twig template rather than the script.</td></tr>
+          <tr><td><code>meta</code></td><td>ESLint's own <code>meta</code>, passed through untouched.</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        Fixes go through the same validation a codemod does, so a rule cannot emit two fixes that overlap, and
+        <code>match.remove()</code> takes the statement's separator with it rather than stranding a comma. For
+        anything needing scope, types or control flow, write the visitor —
+        <code>eslintLanguage(sourceCode)</code> is exported so a hand-written rule can still ask structural
+        questions of the tree ESLint gave it.
+      </p>
+
+      <h2 id="cli">7 &middot; The command line</h2>
+
+      <p>Useful before you write anything: find out whether a pattern matches what you think it does.</p>
+
+      <pre><code>cs find    -l twig       -p '{% block $name %}$$$body{% endblock %}' templates/
+cs find    -l javascript -p 'console.log($$$args)' src/ --json
+cs replace -l javascript -p 'foo($x)' -r 'bar($x)' --write src/
+cs debug   -l javascript -p 'foo($x)'
+cs languages</code></pre>
+
+      <p>
+        <code>$name</code> is one node, <code>$$$name</code> is a run of siblings, <code>$_</code> and
+        <code>$$$_</code> are the same without capturing. With no paths, <code>cs</code> reads stdin.
+        <code>--adapter ./my-adapter.js</code> loads an adapter you wrote yourself.
+      </p>
+
+      <h2 id="debugging">8 &middot; When a pattern does not match</h2>
+
+      <p><code>explain()</code> says where the matcher got stuck, and what it wanted there instead:</p>
+
+      <pre><code>js.parse("bar(1)").explain(code`foo(${arg})`);</code></pre>
+
+      <pre><code>no match; the closest attempt stopped at 1:1
+  reason:   text
+  expected: foo</code></pre>
+
+      <p>
+        <code>debug()</code> on a compiled pattern prints the intermediate representation, which is the fastest
+        way to see whether a hole came out as one node or a run of siblings.
+      </p>
+
+      <div class="next-prev">
+        <a href="index.html"><span>Previous</span>← Overview</a>
+        <a href="api.html"><span>Next</span>API reference →</a>
+      </div>
+
+    </main>
+
+    <aside class="toc" data-toc><h2>On this page</h2></aside>
+  </div>
+
+  <footer>
+    <p>
+      codestring — an experiment by <a href="https://github.com/gweiermann">gweiermann</a>, MIT licensed.
+      Not actively maintained; <a href="https://github.com/gweiermann/codestring/issues">happy to hand it over</a>.
+    </p>
+  </footer>
+</div>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

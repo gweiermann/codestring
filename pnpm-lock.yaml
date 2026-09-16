@@ -11,6 +11,9 @@ importers:
       '@codestring/adapter-utils':
         specifier: workspace:*
         version: link:packages/adapter-utils
+      '@codestring/babel':
+        specifier: workspace:*
+        version: link:packages/babel
       '@codestring/cli':
         specifier: workspace:*
         version: link:packages/cli
@@ -239,6 +242,9 @@ importers:
 
   packages/umbrella:
     dependencies:
+      '@codestring/babel':
+        specifier: workspace:*
+        version: link:../babel
       '@codestring/core':
         specifier: workspace:*
         version: link:../core
@@ -254,6 +260,9 @@ importers:
       '@codestring/twig':
         specifier: workspace:*
         version: link:../twig
+      '@codestring/vue':
+        specifier: workspace:*
+        version: link:../vue
 
   packages/vue:
     dependencies:

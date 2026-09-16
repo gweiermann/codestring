@@ -35,6 +35,7 @@
     "@codestring/css": "workspace:*",
     "@codestring/eslint": "workspace:*",
     "eslint": "^9.17.0",
-    "@codestring/vue": "workspace:*"
+    "@codestring/vue": "workspace:*",
+    "@codestring/babel": "workspace:*"
   }
 }

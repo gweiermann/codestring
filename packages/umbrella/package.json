@@ -33,6 +33,18 @@
       "import": "./dist/css.js",
       "require": "./dist/cjs/css.js",
       "default": "./dist/css.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js",
+      "require": "./dist/cjs/vue.js",
+      "default": "./dist/vue.js"
+    },
+    "./babel": {
+      "types": "./dist/babel.d.ts",
+      "import": "./dist/babel.js",
+      "require": "./dist/cjs/babel.js",
+      "default": "./dist/babel.js"
     }
   },
   "files": [
@@ -46,7 +58,9 @@
     "@codestring/twig": "workspace:*",
     "@codestring/html": "workspace:*",
     "@codestring/javascript": "workspace:*",
-    "@codestring/css": "workspace:*"
+    "@codestring/css": "workspace:*",
+    "@codestring/vue": "workspace:*",
+    "@codestring/babel": "workspace:*"
   },
   "types": "./dist/index.d.ts",
   "scripts": {

@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API reference — codestring</title>
+<meta name="description" content="Every export of @codestring/core, @codestring/codemod, @codestring/eslint and the adapters.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧵</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="topbar__brand" href="index.html">code<span>string</span></a>
+  <nav class="topbar__nav">
+    <a href="index.html">Overview</a>
+    <a href="tutorial.html">Tutorial</a>
+    <a href="api.html" aria-current="page">API</a>
+    <a href="adapters.html">Adapters</a>
+  </nav>
+  <span class="topbar__spacer"></span>
+  <button class="topbar__action" data-theme-toggle type="button">☾ Dark</button>
+  <a class="topbar__action" href="https://github.com/gweiermann/codestring">GitHub</a>
+</header>
+
+<div class="page">
+  <div class="layout">
+    <main>
+
+      <h1>API reference</h1>
+      <p class="lede">
+        Everything the packages export, grouped by what you reach for it. Types are elided where they only add
+        noise; the shipped <code>.d.ts</code> files are the authority.
+      </p>
+
+      <h2 id="language">Creating a language</h2>
+
+      <div class="api-entry">
+        <h3>createLanguage(adapter, defaults?)</h3>
+        <p>Binds an adapter to the parse entry point and the pattern tag. Call it once per adapter and reuse it.</p>
+        <pre><code>const js = createLanguage(javascriptAdapter);
+const ts = createLanguage(babelAdapter, { parseOptions: { plugins: ["typescript", "jsx"] } });</code></pre>
+        <p>
+          <code>defaults</code> takes <code>parseOptions</code> (passed straight to the adapter),
+          <code>trivia</code> and <code>onParseError</code>. The returned <code>Language</code> carries
+          <code>id</code>, <code>adapter</code>, <code>parse()</code> and <code>pattern</code>.
+        </p>
+      </div>
+
+      <div class="api-entry">
+        <h3>language.parse(input, options?)</h3>
+        <p>
+          Accepts a string, a <code>SourceDocument</code>, a <code>SourceSlice</code> or another parsed document.
+          Handing it a slice is what makes a nested parse keep absolute offsets in the original file. Parses are
+          cached per document, so re-parsing the same text with the same options is free.
+        </p>
+      </div>
+
+      <h2 id="code">Patterns: <code>code</code></h2>
+
+      <div class="api-entry">
+        <h3>code`…`</h3>
+        <p>
+          One tag for both roles. As the first argument of a query it is a <strong>pattern</strong> and its holes
+          are slots; as a replacement it is <strong>source</strong> and its holes are what the match captured.
+        </p>
+        <pre><code>const call = code`console.log(${arg})`;
+
+file.replaceAll(call, code`logger.debug(${arg})`);</code></pre>
+        <p>
+          A fragment compiles lazily, once per language it meets, cached on the template literal's own
+          <code>strings</code> array — so a rule inside a loop pays for compilation once.
+          <code>code({ trivia: "ignore" })`…`</code> sets per-fragment options.
+        </p>
+        <p>Fragments compose: interpolating one into another splices its pattern in, captures and all.</p>
+      </div>
+
+      <h3 id="holes">Holes</h3>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Function</th><th>Binds</th><th>Captured?</th></tr></thead>
+        <tbody>
+          <tr><td><code>capture(name?)</code></td><td>exactly one node</td><td>yes</td></tr>
+          <tr><td><code>any()</code></td><td>a run of zero or more siblings</td><td>no</td></tr>
+          <tr><td><code>optional(item)</code></td><td>zero or one</td><td>as given</td></tr>
+          <tr><td><code>oneOrMore(item)</code></td><td>one or more</td><td>as given</td></tr>
+          <tr><td><code>zeroOrMore(item)</code></td><td>zero or more</td><td>as given</td></tr>
+          <tr><td><code>exactly(n, item)</code></td><td>exactly <code>n</code></td><td>as given</td></tr>
+          <tr><td><code>between(min, max, item)</code></td><td>a bounded run</td><td>as given</td></tr>
+          <tr><td><code>oneOf(a, b, …)</code></td><td>whichever alternative matches</td><td>as given</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        A bare <code>capture()</code> in a list position binds a <em>run</em>, not a single node. To pin it to one,
+        wrap it: <code>exactly(1, name)</code>. This is the single most common surprise —
+        <code>code`f(${a}, ${b})`</code> lets <code>a</code> take everything and leaves <code>b</code> empty.
+      </p>
+
+      <h3 id="cardinality">Cardinality is in the type</h3>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>What you interpolate</th><th><code>get()</code></th><th><code>getAll()</code></th></tr></thead>
+        <tbody>
+          <tr><td><code>capture()</code>, <code>exactly(1, …)</code></td><td><code>CaptureResult</code></td><td>one entry</td></tr>
+          <tr><td><code>optional(…)</code>, <code>between(0, 1, …)</code>, <code>oneOf(…)</code></td><td><code>CaptureResult | undefined</code></td><td>zero or one</td></tr>
+          <tr><td><code>oneOrMore</code>, <code>zeroOrMore</code>, <code>exactly(n &gt; 1, …)</code></td><td><strong>compile error</strong></td><td><code>CaptureResult[]</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2 id="document">ParsedDocument</h2>
+
+      <p>What <code>parse()</code> returns. Every rewrite answers with a new one; nothing mutates.</p>
+
+      <h3 id="document-query">Querying</h3>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>Returns</th></tr></thead>
+        <tbody>
+          <tr><td><code>match(query)</code></td><td><code>Match | null</code> — the first match in source order</td></tr>
+          <tr><td><code>matchAll(query)</code></td><td><code>Match[]</code> — outermost first</td></tr>
+          <tr><td><code>includes(query)</code></td><td><code>boolean</code></td></tr>
+          <tr><td><code>count(query)</code></td><td><code>number</code></td></tr>
+          <tr><td><code>indexOf(query, from?)</code> / <code>lastIndexOf(query)</code></td><td>offset, or <code>-1</code></td></tr>
+          <tr><td><code>equals(query)</code></td><td>does the pattern cover the whole document?</td></tr>
+          <tr><td><code>explain(query)</code></td><td>why it did not match, in words</td></tr>
+          <tr><td><code>nodeAt(offset)</code></td><td>the innermost node containing an offset</td></tr>
+          <tr><td><code>nodes()</code></td><td>every node, depth-first in source order</td></tr>
+          <tr><td><code>text()</code> / <code>toString()</code></td><td>the source this parse covers</td></tr>
+          <tr><td><code>hasErrors()</code> / <code>errors</code></td><td>parse diagnostics</td></tr>
+          <tr><td><code>root</code>, <code>document</code>, <code>start</code>, <code>end</code>, <code>length</code>, <code>raw</code></td><td>the tree, the whole file, the region, the parser's own result</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3 id="document-rewrite">Rewriting</h3>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Method</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>replace(query, to)</code></td><td>the first match, like <code>String.replace</code></td></tr>
+          <tr><td><code>replaceAll(query, to)</code></td><td>every match, like <code>String.replaceAll</code></td></tr>
+          <tr><td><code>remove(query)</code> / <code>removeAll(query)</code></td><td>delete, taking the list separator with it</td></tr>
+          <tr><td><code>insertBefore(query, to)</code> / <code>insertAfter(query, to)</code></td><td>insert, with the separation the list already shows</td></tr>
+          <tr><td><code>applyEdits(edits)</code></td><td>apply a list you built yourself, then re-parse</td></tr>
+          <tr><td><code>edits(query, to)</code></td><td>what a rewrite <em>would</em> do, without doing it</td></tr>
+          <tr><td><code>editsFor(matches, to)</code></td><td>the same, from matches you already have</td></tr>
+          <tr><td><code>inside(region, language, rewrite)</code></td><td>re-read an embedded region with another language</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        <code>to</code> is a <code>code</code> fragment, a string, an <code>Edit</code>, a list of edits, or a
+        function from the match to any of those. Returning <code>null</code> leaves that match alone.
+      </p>
+
+      <div class="callout">
+        <p>
+          <strong>Nested matches.</strong> A pattern can match inside itself — <code>{% if %}</code> around another
+          <code>{% if %}</code> — and both rewrites would want the same range. Matches arrive outermost first, so
+          the outer one wins and the inner is left for a second pass. Matches whose edits do <em>not</em> collide
+          are all kept, which is what lets a nested element be rewritten alongside the one containing it.
+        </p>
+      </div>
+
+      <h2 id="noderef">NodeRef</h2>
+
+      <p>
+        A parser node normalized to what the matcher needs. The parser's own node stays reachable through
+        <code>raw</code>, fully typed.
+      </p>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Member</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><code>kind</code></td><td>the adapter's stable string for this node type</td></tr>
+          <tr><td><code>start</code>, <code>end</code>, <code>text()</code>, <code>slice()</code></td><td>the absolute range in the root document</td></tr>
+          <tr><td><code>children</code>, <code>parent</code>, <code>isLeaf</code></td><td>the tree</td></tr>
+          <tr><td><code>child(kind)</code> / <code>childrenOf(kind)</code></td><td>the part of a construct you mean by name</td></tr>
+          <tr><td><code>trivia</code></td><td><code>null</code>, <code>"whitespace"</code>, <code>"comment"</code> or <code>"separator"</code></td></tr>
+          <tr><td><code>variadic</code>, <code>listSeparator</code>, <code>error</code></td><td>what the adapter declared about this kind</td></tr>
+          <tr><td><code>raw</code></td><td>the parser's node</td></tr>
+          <tr><td><code>parsed</code></td><td>the parse this node belongs to</td></tr>
+          <tr><td><code>match</code>, <code>matchAll</code>, <code>includes</code>, <code>count</code>, <code>nodes()</code></td><td>the document's questions, scoped to this subtree</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        Searching a node searches the tree it is already part of and parses nothing. The node itself is never a
+        match — only what it contains, exactly as a document never matches its own root.
+        <code>walk(node)</code> is exported for a manual traversal.
+      </p>
+
+      <h2 id="match">Match and CaptureResult</h2>
+
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Member</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><code>get(handle)</code> / <code>getAll(handle)</code> / <code>has(handle)</code></td><td>what a hole bound; accepts the handle or its name</td></tr>
+          <tr><td><code>nodes</code>, <code>range</code>, <code>start</code>, <code>end</code>, <code>text()</code></td><td>what the whole match covers</td></tr>
+          <tr><td><code>depth</code>, <code>isTopLevel</code>, <code>ancestors()</code>, <code>closest(kind)</code></td><td>where it sits in the tree</td></tr>
+          <tr><td><code>captures()</code></td><td>every capture result of this match</td></tr>
+          <tr><td><code>replace</code>, <code>insertBefore</code>, <code>insertAfter</code>, <code>remove</code></td><td>edit tags — see below</td></tr>
+          <tr><td><code>transform(edits)</code></td><td>validate and apply a list, returning the new source</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <pre><code>match.replace`logger.debug(${arg})`                  <span class="cmt">// the whole match</span>
+match.replace(arg)`JSON.stringify(${arg})`           <span class="cmt">// one capture of it</span>
+match.insertBefore`// generated\n`
+match.remove()                                       <span class="cmt">// or match.remove(handle)</span></code></pre>
+
+      <p>
+        Interpolating a handle inserts the exact source it bound <em>in this match</em>. Interpolating a handle
+        the pattern never declared is a compile error.
+      </p>
+
+      <p>
+        A <code>CaptureResult</code> is a <code>SourceSlice</code> — <code>text()</code>, <code>start</code>,
+        <code>end</code>, <code>length</code>, <code>isEmpty()</code>, <code>position()</code> — plus
+        <code>nodes</code>, <code>kinds()</code>, and <code>leading</code> / <code>trailing</code> /
+        <code>full()</code> for the trivia matching stepped over on either side.
+      </p>
+
+      <h2 id="edits">Edits</h2>
+
+      <p>
+        Edit constructors return plain objects, so a rule is an ordinary function that returns an edit and a
+        conditional rewrite is an <code>if</code> and a <code>push</code>.
+      </p>
+
+      <pre><code>import { applyEdits, insertAfter, insertBefore, planEdits, remove, replace } from "@codestring/core";
+
+replace(target, text)       <span class="cmt">// target: a node, a slice, a match or a capture result</span>
+remove(target)              <span class="cmt">// takes the adjacent list separator with it</span>
+insertBefore(target, text)  <span class="cmt">// with the separation the list already shows</span>
+insertAfter(target, text)
+
+applyEdits(document, edits) <span class="cmt">// validated, then applied</span>
+planEdits(document, edits)  <span class="cmt">// the same validation, without applying</span></code></pre>
+
+      <p><strong>Guaranteed:</strong></p>
+      <ul>
+        <li>every byte outside an edit range is unchanged — no printer is involved anywhere</li>
+        <li>an interpolated slice keeps its exact source</li>
+        <li>edits from a nested match target the <strong>root</strong> document</li>
+        <li>an insert at the edge of a replaced range is allowed, in either listing order; several inserts at one position apply in the order given</li>
+      </ul>
+
+      <p><strong>Refused, loudly:</strong></p>
+      <ul>
+        <li>partially overlapping or nested edits — <code>OverlappingEditError</code></li>
+        <li>one transform mixing two documents — <code>SourceRevisionError</code></li>
+        <li>one capture handle in two positions of the same pattern — <code>PatternCompileError</code></li>
+        <li>a repetition that could match nothing — <code>PatternCompileError</code></li>
+      </ul>
+
+      <h2 id="codemod">@codestring/codemod</h2>
+
+      <div class="api-entry">
+        <h3>createTransformer(options)</h3>
+        <div class="table-scroll">
+        <table>
+          <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>language</code> <span class="pill">required</span></td><td>what this transformer reads its files as</td></tr>
+            <tr><td><code>transform</code> <span class="pill">required</span></td><td><code>({ file, source }) =&gt;</code> a document, a string, or nothing to skip the file</td></tr>
+            <tr><td><code>name</code></td><td>shown in results; defaults to <code>"&lt;language&gt; transform"</code></td></tr>
+            <tr><td><code>fileGlob</code></td><td>one glob or several; omitted means every file it is handed</td></tr>
+            <tr><td><code>verify</code></td><td><code>"parses"</code>, a predicate, or <code>false</code>. Defaults to <code>"parses"</code> when writing.</td></tr>
+          </tbody>
+        </table>
+        </div>
+        <p>The returned <code>Transformer</code> has <code>name</code>, <code>globs</code>, <code>transformers</code>,
+        <code>appliesTo(path)</code>, <code>transformString()</code>, <code>transformFile()</code> and
+        <code>transformFiles()</code>.</p>
+      </div>
+
+      <div class="api-entry">
+        <h3>createCodemod({ name, transformers })</h3>
+        <p>
+          Runs several transformers in order, each reading what the one before produced. It carries no language of
+          its own, so one codemod can sweep several file types and each is read by whatever knows how to read it.
+          It satisfies the same <code>Transformer</code> interface, so codemods nest.
+        </p>
+      </div>
+
+      <div class="api-entry">
+        <h3>FileResult</h3>
+        <pre><code>{ path, changed, before, after, written, applied }</code></pre>
+        <p>
+          <code>applied</code> names the transformers whose glob matched <em>and</em> which actually changed
+          something, so a dry run (<code>write: false</code>) tells you what a real run would touch.
+        </p>
+      </div>
+
+      <div class="api-entry">
+        <h3>TransformVerificationError</h3>
+        <p>Thrown when <code>verify</code> refuses a rewrite. Carries <code>path</code> and <code>reason</code>.</p>
+      </div>
+
+      <p class="muted">
+        Also exported: <code>collectFiles</code>, <code>matchesAnyGlob</code>, <code>readSource</code>,
+        <code>writeSource</code>.
+      </p>
+
+      <h2 id="eslint">@codestring/eslint</h2>
+
+      <div class="api-entry">
+        <h3>createRule(options)</h3>
+        <p>Returns an ordinary <code>Rule.RuleModule</code>. See the
+        <a href="tutorial.html#eslint">tutorial</a> for the full option table.</p>
+      </div>
+
+      <div class="api-entry">
+        <h3>eslintLanguage(sourceCode)</h3>
+        <p>
+          A language backed by the AST ESLint already built. Exported so a hand-written visitor rule can still ask
+          structural questions without parsing the file a second time.
+        </p>
+      </div>
+
+      <h2 id="adapters">Adapter extras</h2>
+
+      <p>
+        Adapters are mostly just an adapter object, but a few ship standalone accessors for things the normalized
+        tree cannot express on its own. Each takes a node and nothing else.
+      </p>
+
+      <h3 id="adapter-vue">@codestring/vue</h3>
+      <div class="table-scroll">
+      <table>
+        <tbody>
+          <tr><td><code>isElement(node)</code></td><td>does this node render a tag?</td></tr>
+          <tr><td><code>isComponent(node)</code></td><td>does Vue resolve this tag through the component lookup?</td></tr>
+          <tr><td><code>tagOf(node)</code></td><td>the written tag, or <code>null</code></td></tr>
+          <tr><td><code>attributesOf(node)</code></td><td>everything inside the start tag, in order</td></tr>
+          <tr><td><code>nameOf(node)</code></td><td><code>class</code>, or <code>if</code> for every spelling of <code>v-if</code></td></tr>
+          <tr><td><code>contentOf(node)</code></td><td>everything between the tags, tags excluded</td></tr>
+          <tr><td><code>vueNode(node)</code></td><td>the compiler node, for what only <code>@vue/compiler-dom</code> knows</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        Kinds are <code>element:&lt;tag&gt;</code>, <code>component:&lt;tag&gt;</code>,
+        <code>directive:&lt;name&gt;</code>, plus <code>tag-open</code>, <code>tag-close</code>,
+        <code>attributes</code>, <code>attribute</code>, <code>attribute-value</code>,
+        <code>directive-argument</code>, <code>directive-argument-dynamic</code>, <code>expression</code>,
+        <code>interpolation</code>, <code>text</code>, <code>comment</code>, <code>whitespace</code>.
+      </p>
+
+      <h3 id="adapter-babel">@codestring/babel</h3>
+      <div class="table-scroll">
+      <table>
+        <tbody>
+          <tr><td><code>fromBabel(file, source)</code></td><td>normalize an AST parsed elsewhere</td></tr>
+          <tr><td><code>babelLanguage(file, source, options?)</code></td><td>a language answering the whole file from that AST</td></tr>
+          <tr><td><code>babelNode(node)</code></td><td>the Babel node behind a matched one</td></tr>
+          <tr><td><code>babelIndex(root)</code></td><td>every Babel node keyed to the matched node covering it</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>
+        Together these let a codemod hold <strong>one</strong> tree: <code>@babel/traverse</code> for the scope
+        chain, patterns for everything else, and both addressing the same node objects.
+      </p>
+
+      <pre><code>const file = parse(source, { sourceType: "module", plugins: ["typescript"] });
+const index = babelIndex(babelLanguage(file, source).parse(source).root);
+
+index.get(someBabelNode)?.includes(code`this`);</code></pre>
+
+      <h3 id="adapter-javascript">@codestring/javascript</h3>
+      <p><code>fromEstree(program, source, comments?)</code> — normalize an ESTree program parsed elsewhere.</p>
+
+      <h2 id="errors">Errors</h2>
+
+      <div class="table-scroll">
+      <table>
+        <tbody>
+          <tr><td><code>AdapterContractError</code></td><td>an adapter broke an invariant — bad range, children out of order, a child outside its parent</td></tr>
+          <tr><td><code>PatternCompileError</code></td><td>the pattern cannot be compiled — a handle used twice, a repetition that could match nothing</td></tr>
+          <tr><td><code>CaptureCardinalityError</code></td><td><code>get()</code> on a handle that did not bind</td></tr>
+          <tr><td><code>OverlappingEditError</code></td><td>two edits want overlapping ranges</td></tr>
+          <tr><td><code>SourceRevisionError</code></td><td>one transform mixing edits from two documents</td></tr>
+          <tr><td><code>ParseError</code></td><td>the parse policy rejected a file with diagnostics</td></tr>
+          <tr><td><code>MatchError</code></td><td>an impossible match request — a pattern of another language against a node</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2 id="types">Utility types</h2>
+
+      <p>For wrapping the library in your own helpers:</p>
+
+      <pre><code>MatchOf&lt;P&gt;   CapturesOfPattern&lt;P&gt;   NodeOfPattern&lt;P&gt;   LanguageNodeOf&lt;L&gt;
+AdapterNodeOf&lt;A&gt;   ParsedOf&lt;A&gt;   CaptureSet   CapturesOf&lt;V&gt;</code></pre>
+
+      <div class="next-prev">
+        <a href="tutorial.html"><span>Previous</span>← Tutorial</a>
+        <a href="adapters.html"><span>Next</span>Writing an adapter →</a>
+      </div>
+
+    </main>
+
+    <aside class="toc" data-toc><h2>On this page</h2></aside>
+  </div>
+
+  <footer>
+    <p>
+      codestring — an experiment by <a href="https://github.com/gweiermann">gweiermann</a>, MIT licensed.
+      Not actively maintained; <a href="https://github.com/gweiermann/codestring/issues">happy to hand it over</a>.
+    </p>
+  </footer>
+</div>
+
+<script src="assets/site.js"></script>
+</body>
+</html>
